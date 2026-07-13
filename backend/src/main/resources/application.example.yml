@@ -6,7 +6,7 @@ spring:
     url: jdbc:mysql://127.0.0.1:3306/flowsync_simple?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
-    password: root
+    password: 你的数据库密码
     hikari:
       initialization-fail-timeout: -1
       connection-timeout: 10000
@@ -31,7 +31,8 @@ springdoc:
   swagger-ui:
     path: /doc.html
 
-# ---- DeepSeek AI 配置（免费，兼容 OpenAI 格式） ----
+# ---- DeepSeek AI 配置 ----
 # 获取 API Key: https://platform.deepseek.com/
+# 在 backend\.env 中填写 DEEPSEEK_API_KEY=sk-xxx
 deepseek:
   api-key: ${DEEPSEEK_API_KEY:}
