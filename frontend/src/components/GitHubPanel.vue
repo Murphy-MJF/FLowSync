@@ -115,16 +115,16 @@
     </el-dialog>
 
     <!-- 文件树 + 源码查看弹窗 -->
-    <el-dialog :title="'源码浏览 — ' + selectedBranch" v-model="treeVisible" width="800px" top="3vh">
-      <div style="display:flex;height:500px">
+    <el-dialog :title="'源码浏览 — ' + selectedBranch" v-model="treeVisible" width="1000px" top="2vh">
+      <div style="display:flex;height:600px">
         <!-- 文件树 -->
-        <div style="width:280px;overflow-y:auto;border-right:1px solid #ebeef5;padding-right:8px">
+        <div style="width:320px;overflow-x:auto;overflow-y:auto;border-right:1px solid #ebeef5;padding-right:8px;min-width:200px;resize:horizontal">
           <el-tree :data="fileTree" :props="{ label: 'name', children: 'children' }"
                    @node-click="handleFileClick" highlight-current node-key="path"
-                   :filter-node-method="filterNode" style="font-size:13px" default-expand-all />
+                   :filter-node-method="filterNode" style="font-size:13px;white-space:nowrap" default-expand-all />
         </div>
         <!-- 源码 -->
-        <div style="flex:1;overflow:auto;padding-left:12px">
+        <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding-left:12px;word-break:break-all">
           <div v-if="!selectedFile" style="color:#909399;text-align:center;margin-top:100px">
             点击左侧文件查看源码
           </div>
@@ -133,7 +133,7 @@
               <strong>{{ selectedFile.path }}</strong>
               <el-tag size="small">{{ selectedFile.size }} bytes</el-tag>
             </div>
-            <pre v-if="selectedFile.isText" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;overflow:auto;max-height:420px;font-size:13px;line-height:1.5">{{ selectedFile.content }}</pre>
+            <pre v-if="selectedFile.isText" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;overflow:auto;max-height:520px;font-size:13px;line-height:1.5">{{ selectedFile.content }}</pre>
             <div v-else style="color:#E6A23C;padding:40px;text-align:center">二进制文件，无法预览</div>
           </div>
         </div>
