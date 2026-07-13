@@ -50,6 +50,38 @@
       </el-table>
     </el-card>
 
+    <!-- AI 额度审批 -->
+    <el-card style="margin-top:20px">
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>AI 额度审批</span>
+          <el-button size="small" @click="fetchQuotaRequests">刷新</el-button>
+        </div>
+      </template>
+      <el-table :data="quotaRequests" border stripe v-loading="qrLoading" empty-text="暂无申请">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="userName" label="申请人" width="100" />
+        <el-table-column prop="requestedAmount" label="申请次数" width="90" />
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'approved' ? 'success' : row.status === 'denied' ? 'danger' : 'warning'">
+              {{ row.status === 'approved' ? '已批准' : row.status === 'denied' ? '已拒绝' : '待审批' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="时间" width="160" />
+        <el-table-column label="操作" v-if="true">
+          <template #default="{ row }">
+            <template v-if="row.status === 'pending'">
+              <el-button size="small" type="success" @click="handleApprove(row, true)">批准</el-button>
+              <el-button size="small" type="danger" @click="handleApprove(row, false)">拒绝</el-button>
+            </template>
+            <span v-else style="color:#909399">—</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
     <!-- 转让弹窗 -->
     <el-dialog title="转让项目所有权" v-model="transferVisible" width="500px">
       <p style="margin-bottom:12px;color:#E6A23C">
@@ -78,8 +110,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getAdminUsers, genInviteCode, changeUserRole, getTransferCandidates } from '../api'
-import { ElMessage } from 'element-plus'
+import { getAdminUsers, genInviteCode, changeUserRole, getTransferCandidates, getQuotaRequests, approveQuota, setQuota } from '../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 defineProps({ currentUser: Object })
 
@@ -95,12 +127,18 @@ const transferProjects = ref([])
 const transferCandidates = ref([])
 const selectedNewOwner = ref(null)
 
+const quotaRequests = ref([])
+const qrLoading = ref(false)
+
 onMounted(async () => {
   loading.value = true
   try {
-    const [uRes, cRes] = await Promise.all([getAdminUsers(), getTransferCandidates()])
+    const [uRes, cRes, qRes] = await Promise.all([
+      getAdminUsers(), getTransferCandidates(), getQuotaRequests()
+    ])
     if (uRes.success) users.value = uRes.data || []
     if (cRes.success) transferCandidates.value = cRes.data || []
+    if (qRes.success) quotaRequests.value = qRes.data || []
   } finally { loading.value = false }
 })
 
@@ -139,6 +177,35 @@ async function handleChangeRole(row, newRole) {
       }
     }
   } catch (e) { /* handled by interceptor */ }
+}
+
+async function fetchQuotaRequests() {
+  qrLoading.value = true
+  try {
+    const res = await getQuotaRequests()
+    if (res.success) quotaRequests.value = res.data || []
+  } finally { qrLoading.value = false }
+}
+
+async function handleApprove(row, approved) {
+  let amount = row.requestedAmount
+  if (approved) {
+    try {
+      const { value } = await ElMessageBox.prompt('批准次数', '批准额度', {
+        inputValue: amount, inputType: 'number'
+      })
+      amount = parseInt(value)
+    } catch { return }
+  }
+  try {
+    const res = await approveQuota(row.id, approved, amount)
+    if (res.success) {
+      ElMessage.success(res.message)
+      fetchQuotaRequests()
+      const uRes = await getAdminUsers()
+      if (uRes.success) users.value = uRes.data || []
+    }
+  } catch (e) { /* handled */ }
 }
 
 async function handleConfirmTransfer() {

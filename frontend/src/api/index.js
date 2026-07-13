@@ -82,4 +82,11 @@ export const genInviteCode = () => api.post('/admin/invite-code')
 export const changeUserRole = (data) => api.post('/admin/change-role', data)
 export const getTransferCandidates = () => api.get('/admin/transfer-candidates')
 
+// AI 额度
+export const getQuotaRequests = () => api.get('/admin/quota-requests')
+export const requestQuota = (amount) => api.post('/admin/quota-request', { amount })
+export const approveQuota = (requestId, approved, amount) =>
+  api.post('/admin/quota-approve', { requestId, approved, amount })
+export const setQuota = (userId, quota) => api.post('/admin/quota-set', { userId, quota })
+
 export default api

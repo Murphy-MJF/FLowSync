@@ -16,6 +16,7 @@ USE flowsync_simple;
 -- -----------------------------------------------------
 -- 1. 用户表 sys_user
 -- -----------------------------------------------------
+DROP TABLE IF EXISTS ai_quota_request;
 DROP TABLE IF EXISTS invite_code;
 DROP TABLE IF EXISTS operation_log;
 DROP TABLE IF EXISTS task_summary;
@@ -32,6 +33,7 @@ CREATE TABLE sys_user (
     role        VARCHAR(30)  NOT NULL                 COMMENT '角色：负责人/组员',
     phone       VARCHAR(20)  DEFAULT NULL             COMMENT '联系电话',
     email       VARCHAR(100) DEFAULT NULL             COMMENT '电子邮箱',
+    ai_quota    INT          DEFAULT 0                  COMMENT 'AI使用剩余次数',
     create_time DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_username (username)
@@ -125,6 +127,21 @@ CREATE TABLE operation_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
 -- -----------------------------------------------------
+-- 7. AI额度申请表 ai_quota_request
+-- -----------------------------------------------------
+CREATE TABLE ai_quota_request (
+    id               BIGINT       NOT NULL AUTO_INCREMENT  COMMENT '主键',
+    user_id          BIGINT       NOT NULL                 COMMENT '申请人 ID',
+    requested_amount INT          NOT NULL                 COMMENT '申请次数',
+    status           VARCHAR(20)  NOT NULL DEFAULT 'pending' COMMENT '状态：pending/approved/denied',
+    handled_by       BIGINT       DEFAULT NULL             COMMENT '处理人（管理员）',
+    create_time      DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (id),
+    CONSTRAINT fk_quota_user   FOREIGN KEY (user_id)    REFERENCES sys_user(id) ON DELETE CASCADE,
+    CONSTRAINT fk_quota_handler FOREIGN KEY (handled_by) REFERENCES sys_user(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI额度申请表';
+
+-- -----------------------------------------------------
 -- 7. 邀请码表 invite_code
 -- -----------------------------------------------------
 CREATE TABLE invite_code (
@@ -141,8 +158,8 @@ CREATE TABLE invite_code (
 -- 预置用户数据
 -- -----------------------------------------------------
 -- 密码统一为 123456 的 BCrypt 哈希（cost=10）
-INSERT INTO sys_user (username, password, real_name, role) VALUES
-('admin',   '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '系统管理员', '管理员'),
-('leader',  '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '项目负责人', '负责人'),
-('member1', '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '王小明',     '组员'),
-('member2', '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '李小华',     '组员');
+INSERT INTO sys_user (username, password, real_name, role, ai_quota) VALUES
+('admin',   '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '系统管理员', '管理员', 999),
+('leader',  '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '项目负责人', '负责人', 0),
+('member1', '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '王小明',     '组员',   0),
+('member2', '$2b$10$JTDbxruQLYGoMzrRbApPlej53AIE9CrFwZM/qZGhdv0h9mXlagGCO', '李小华',     '组员',   0);

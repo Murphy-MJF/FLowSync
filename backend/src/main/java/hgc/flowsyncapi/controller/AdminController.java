@@ -1,6 +1,7 @@
 package hgc.flowsyncapi.controller;
 
 import hgc.flowsyncapi.common.ApiResponse;
+import hgc.flowsyncapi.entity.AiQuotaRequest;
 import hgc.flowsyncapi.entity.ProjectInfo;
 import hgc.flowsyncapi.entity.User;
 import hgc.flowsyncapi.service.InviteCodeService;
@@ -139,6 +140,70 @@ public class AdminController {
         try {
             checkAdmin(req);
             return ApiResponse.ok(userService.listUsers());
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage());
+        }
+    }
+
+    // ==================== AI 额度管理 ====================
+
+    /** 获取额度申请列表 */
+    @GetMapping("/quota-requests")
+    public ApiResponse<List<AiQuotaRequest>> listQuotaRequests(HttpServletRequest req) {
+        try {
+            checkAdmin(req);
+            return ApiResponse.ok(userService.listQuotaRequests());
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage());
+        }
+    }
+
+    /** 负责人提交额度申请 */
+    @PostMapping("/quota-request")
+    public ApiResponse<Void> requestQuota(@RequestBody Map<String, Object> body,
+                                           HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        try {
+            int amount = Integer.parseInt(body.get("amount").toString());
+            userService.requestQuota(userId, amount);
+            logService.log(userId, "申请AI额度", "AI额度", null, "申请 " + amount + " 次");
+            return ApiResponse.ok("申请已提交，等待管理员审批", null);
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage());
+        }
+    }
+
+    /** 管理员审批额度申请 */
+    @PostMapping("/quota-approve")
+    public ApiResponse<Void> approveQuota(@RequestBody Map<String, Object> body,
+                                           HttpServletRequest req) {
+        Long adminId = AuthController.getCurrentUserId(req);
+        try {
+            checkAdmin(req);
+            Long requestId = Long.valueOf(body.get("requestId").toString());
+            boolean approved = Boolean.parseBoolean(body.get("approved").toString());
+            int grantedAmount = body.containsKey("amount") ? Integer.parseInt(body.get("amount").toString()) : 0;
+            userService.handleQuotaRequest(requestId, adminId, approved, grantedAmount);
+            logService.log(adminId, approved ? "批准AI额度" : "拒绝AI额度", "AI额度", requestId,
+                    approved ? "批准 " + grantedAmount + " 次" : "拒绝");
+            return ApiResponse.ok(approved ? "已批准" : "已拒绝", null);
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage());
+        }
+    }
+
+    /** 管理员直接设置用户额度 */
+    @PostMapping("/quota-set")
+    public ApiResponse<User> setQuota(@RequestBody Map<String, Object> body,
+                                       HttpServletRequest req) {
+        Long adminId = AuthController.getCurrentUserId(req);
+        try {
+            checkAdmin(req);
+            Long targetUserId = Long.valueOf(body.get("userId").toString());
+            int quota = Integer.parseInt(body.get("quota").toString());
+            User updated = userService.setQuota(targetUserId, quota);
+            logService.log(adminId, "设置AI额度", "用户", targetUserId, "设为 " + quota + " 次");
+            return ApiResponse.ok("额度设置成功", updated);
         } catch (RuntimeException e) {
             return ApiResponse.fail(e.getMessage());
         }

@@ -6,6 +6,7 @@ import hgc.flowsyncapi.entity.TaskInfo;
 import hgc.flowsyncapi.service.OperationLogService;
 import hgc.flowsyncapi.service.QwenService;
 import hgc.flowsyncapi.service.TaskInfoService;
+import hgc.flowsyncapi.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,13 +20,16 @@ public class AiController {
     private final QwenService qwenService;
     private final TaskInfoService taskInfoService;
     private final OperationLogService logService;
+    private final UserService userService;
 
     public AiController(QwenService qwenService,
                         TaskInfoService taskInfoService,
-                        OperationLogService logService) {
+                        OperationLogService logService,
+                        UserService userService) {
         this.qwenService = qwenService;
         this.taskInfoService = taskInfoService;
         this.logService = logService;
+        this.userService = userService;
     }
 
     /** 单任务 AI 建议 */
@@ -37,9 +41,18 @@ public class AiController {
         return ApiResponse.ok(result);
     }
 
-    /** AI 任务拆解 */
+    /** AI 任务拆解（消耗额度） */
     @PostMapping("/task-plan")
-    public ApiResponse<AiTaskPlanResponse> taskPlan(@RequestBody AiTaskPlanRequest request) {
+    public ApiResponse<AiTaskPlanResponse> taskPlan(@RequestBody AiTaskPlanRequest request,
+                                                     HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        String role = (String) req.getAttribute("currentUserRole");
+        // 管理员不限额度
+        if (!"管理员".equals(role)) {
+            if (!userService.consumeQuota(userId)) {
+                return ApiResponse.fail("AI 使用次数不足，请联系管理员申请额度");
+            }
+        }
         try {
             AiTaskPlanResponse plan = qwenService.generateTaskPlan(request);
             return ApiResponse.ok("AI 拆解完成", plan);

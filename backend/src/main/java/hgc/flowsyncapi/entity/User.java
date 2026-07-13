@@ -17,6 +17,7 @@ public class User {
     private String role;
     private String phone;
     private String email;
+    private Integer aiQuota;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

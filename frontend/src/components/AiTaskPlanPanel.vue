@@ -1,6 +1,13 @@
 <template>
   <div>
-    <h2 style="margin-bottom:16px">AI 任务拆解</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2>AI 任务拆解</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="color:#606266">剩余次数：</span>
+        <el-tag :type="quotaLeft > 0 ? 'success' : 'danger'" size="large">{{ quotaLeft }}</el-tag>
+        <el-button size="small" @click="showRequestDialog = true">申请额度</el-button>
+      </div>
+    </div>
 
     <!-- 第一步：输入项目信息 -->
     <el-card v-if="!planResult" style="margin-bottom:20px">
@@ -81,15 +88,28 @@
         </li>
       </ul>
     </el-card>
+
+    <!-- 申请额度弹窗 -->
+    <el-dialog title="申请AI使用额度" v-model="showRequestDialog" width="350px">
+      <el-form :model="requestForm" label-width="80px">
+        <el-form-item label="申请次数">
+          <el-input-number v-model="requestForm.amount" :min="1" :max="100" style="width:100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showRequestDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleRequestQuota" :loading="requesting">提交申请</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { getProjects, getUsers, aiTaskPlan, aiImportPlan } from '../api'
+import { ref, computed, onMounted } from 'vue'
+import { getProjects, getUsers, aiTaskPlan, aiImportPlan, requestQuota } from '../api'
 import { ElMessage } from 'element-plus'
 
-defineProps({ currentUser: Object })
+const props = defineProps({ currentUser: Object })
 
 const projects = ref([])
 const users = ref([])
@@ -97,14 +117,30 @@ const apiConfigured = ref(true)
 const generating = ref(false)
 const importing = ref(false)
 const planResult = ref(null)
+const showRequestDialog = ref(false)
+const requesting = ref(false)
+const requestForm = ref({ amount: 5 })
 
 const form = ref({ projectId: null, goal: '', description: '' })
+
+const quotaLeft = computed(() => props.currentUser?.aiQuota ?? 0)
 
 onMounted(async () => {
   const [pRes, uRes] = await Promise.all([getProjects(), getUsers()])
   if (pRes.success) projects.value = pRes.data || []
   if (uRes.success) users.value = uRes.data || []
 })
+
+async function handleRequestQuota() {
+  requesting.value = true
+  try {
+    const res = await requestQuota(requestForm.value.amount)
+    if (res.success) {
+      ElMessage.success('申请已提交，等待管理员审批')
+      showRequestDialog.value = false
+    }
+  } finally { requesting.value = false }
+}
 
 function onProjectChange(val) {
   const p = projects.value.find(x => x.id === val)
