@@ -101,6 +101,9 @@ export const githubTree = (owner, repo, branch) =>
   api.get(`/github/repos/${owner}/${repo}/tree`, { params: { branch } })
 export const githubContents = (owner, repo, path, branch) =>
   api.get(`/github/repos/${owner}/${repo}/contents`, { params: { path, branch } })
+export const fileLockAcquire = (data) => api.post('/github/file-lock/acquire', data)
+export const fileLockRelease = (data) => api.post('/github/file-lock/release', data)
+export const fileLockStatus = (params) => api.get('/github/file-lock/status', { params })
 
 // AI 额度
 export const getQuotaRequests = () => api.get('/admin/quota-requests')

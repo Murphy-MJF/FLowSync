@@ -128,7 +128,24 @@
           <div v-if="!selectedFile" style="color:#909399;text-align:center;margin-top:100px">
             点击左侧文件查看源码
           </div>
-          <div v-else>
+          <!-- 上传排队提示 -->
+          <div v-if="uploadQueue" style="text-align:center;padding:20px;margin:8px 0;background:#fdf6ec;border-radius:4px">
+            <p style="color:#E6A23C">⏳ <strong>{{ uploadQueue.currentHolder }}</strong> 正在上传，您排在第 <strong>{{ uploadQueue.queuePosition }}</strong> 位</p>
+            <p style="color:#909399;font-size:12px">每 3 秒自动检查，轮到您时将拉取远端最新版本供差分对比</p>
+          </div>
+          <!-- 上传就绪 — 差分对比 -->
+          <div v-if="uploadReady" style="padding:12px;margin:8px 0;background:#f0f9eb;border-radius:4px">
+            <p style="color:#67C23A;margin-bottom:8px">✅ 轮到您了！请检查远端最新版本与您的修改：</p>
+            <div v-if="diffContent" style="max-height:200px;overflow:auto;margin-bottom:8px">
+              <p style="font-size:12px;color:#909399;margin-bottom:4px">远端最新版本（仓库）：</p>
+              <pre style="background:#1e1e1e;color:#d4d4d4;padding:8px;border-radius:4px;font-size:12px;line-height:1.4">{{ diffContent }}</pre>
+            </div>
+            <div style="display:flex;gap:8px">
+              <el-button size="small" type="primary" @click="handleConfirmUpload">确认上传</el-button>
+              <el-button size="small" @click="cancelUpload">放弃上传</el-button>
+            </div>
+          </div>
+          <div v-else-if="selectedFile">
             <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
               <div style="display:flex;align-items:center;gap:12px">
                 <strong>{{ selectedFile.path }}</strong>
@@ -141,6 +158,7 @@
                 </template>
                 <template v-if="isEditing">
                   <el-button size="small" type="primary" @click="saveEdit">应用修改</el-button>
+                  <el-button size="small" type="success" @click="handleUpload">上传到仓库</el-button>
                   <el-button size="small" @click="cancelEdit">取消</el-button>
                 </template>
               </div>
@@ -160,8 +178,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
-         githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents } from '../api'
+         githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents,
+         fileLockAcquire, fileLockRelease, fileLockStatus } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { addToQueue, removeFromQueue } from '../store/uploadQueue'
 
 defineProps({ currentUser: Object })
 
@@ -337,12 +357,19 @@ function decodeBase64(base64) {
   return new TextDecoder('utf-8').decode(bytes)
 }
 
+const lockStatus = ref(null)  // 锁状态提示
+let lockPollTimer = null
+
+const uploadQueue = ref(null)   // 上传排队状态
+const diffContent = ref('')      // 远端最新版本（用于差分对比）
+const uploadReady = ref(false)   // 轮到我了，等待确认
+
 function startEdit() {
   editContent.value = selectedFile.value.content
   isEditing.value = true
 }
 
-function saveEdit() {
+async function saveEdit() {
   selectedFile.value.content = editContent.value
   selectedFile.value.size = new Blob([editContent.value]).size
   isEditing.value = false
@@ -350,6 +377,74 @@ function saveEdit() {
 
 function cancelEdit() {
   isEditing.value = false
+}
+
+// ---- 上传 GitHub（含排队机制） ----
+async function handleUpload() {
+  const r = repo.value
+  const filePath = selectedFile.value.path
+  const res = await fileLockAcquire({
+    owner: r.owner, repo: r.repoName, branch: selectedBranch.value, path: filePath
+  })
+  if (res.success && res.data.acquired) {
+    // 直接上传
+    uploadReady.value = true
+    uploadQueue.value = null
+    ElMessage.success('上传通道就绪，请确认上传')
+  } else if (res.success) {
+    // 进入排队 → 加入全局队列
+    const queueItem = {
+      owner: r.owner, repo: r.repoName, branch: selectedBranch.value,
+      path: filePath, ready: false, currentHolder: res.data.currentHolder
+    }
+    uploadQueue.value = res.data
+    uploadReady.value = false
+    currentQueueItem.value = queueItem
+    addToQueue(queueItem)
+    lockPollTimer = setInterval(async () => {
+      const s = await fileLockStatus({
+        owner: r.owner, repo: r.repoName, branch: selectedBranch.value, path: filePath
+      })
+      if (s.success && !s.data.locked) {
+        clearInterval(lockPollTimer)
+        // 拉取远端最新版本做差分对比
+        const cRes = await githubContents(r.owner, r.repoName, filePath, selectedBranch.value)
+        if (cRes.success && cRes.data.content) {
+          diffContent.value = decodeBase64(cRes.data.content)
+        }
+        uploadReady.value = true
+        uploadQueue.value = null
+        ElMessage.success('轮到您了！请检查远端变更后确认上传')
+      }
+    }, 3000)
+  }
+}
+
+const currentQueueItem = ref(null)
+
+async function handleConfirmUpload() {
+  ElMessage.info('上传功能预留，当前仅本地生效')
+  await fileLockRelease({
+    owner: repo.value.owner, repo: repo.value.repoName,
+    branch: selectedBranch.value, path: selectedFile.value.path
+  })
+  if (currentQueueItem.value) removeFromQueue(currentQueueItem.value)
+  uploadReady.value = false
+  diffContent.value = ''
+  isEditing.value = false
+  selectedFile.value.content = editContent.value
+}
+
+function cancelUpload() {
+  if (lockPollTimer) { clearInterval(lockPollTimer); lockPollTimer = null }
+  if (currentQueueItem.value) removeFromQueue(currentQueueItem.value)
+  fileLockRelease({
+    owner: repo.value.owner, repo: repo.value.repoName,
+    branch: selectedBranch.value, path: selectedFile.value.path
+  })
+  uploadReady.value = false
+  uploadQueue.value = null
+  diffContent.value = ''
 }
 
 function filterNode(value, data) {

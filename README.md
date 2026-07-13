@@ -351,6 +351,9 @@ npm run serve
 | 30 | 授权后无法处理回调 | 前端缺少 `/github-callback` 路由 | 新增 `GithubCallback.vue` + 路由配置 |
 | 31 | AI 拆解 `timeout of 10000ms exceeded` | DeepSeek API 响应慢，超时 10s 不够 | Axios 全局 timeout 改为 60000ms |
 | 32 | GitHub 仓库面板模板编译报错 | Vue 模板不支持 `?.` 可选链语法 | 全部改为三元表达式 `a ? a.b : ''` |
+| 33 | 源码查看中文乱码 | `atob()` 只支持 Latin-1，UTF-8 被截断 | 改用 `TextDecoder('utf-8').decode()` |
+| 34 | 仓库解绑不成功 | `handleUnbind` 函数未实现 + 缺后端接口 | 新增 `DELETE /api/projects/{id}/github/repository` + 前确认弹窗 |
+| 35 | 文件树无法横向滚动 | `overflow:auto` + `white-space:nowrap` 未正确设置 | 文件树容器 `overflow-x:auto`，节点 `white-space:nowrap`，右侧 `overflow-x:hidden` |
 
 ---
 
@@ -585,6 +588,8 @@ appForXiaoxueqi/
 | 2026-07-10 | AI 排除管理员：`generateTaskPlan` 查询成员时过滤管理员 |
 | 2026-07-10 | 批量删除：项目/任务多选 + 批量删除按钮 + 确认弹窗 |
 | 2026-07-10 | 项目转让：降级负责人时检测拥有项目 → 选择接手人 → 批量转让 + 降级 |
+| 2026-07-13 | GitHub 源码浏览：文件树 + 代码高亮 + 本地编辑 + UTF-8 解码 + 文件锁排队 + 上传队列控制台 |
+| 2026-07-13 | 项目/任务改负责人：管理员可更改 + 项目负责人可改自己项目的任务负责人 |
 | 2026-07-13 | GitHub 集成：OAuth 授权 + 仓库绑定 + GitHubPanel（分支/提交/Issue/PR）+ GithubCallback 路由 + SSL 适配 |
 | 2026-07-10 | AI 额度系统：`ai_quota` 字段 + `ai_quota_request` 表 + 申请/审批/消耗 |
 | 2026-07-10 | 子目录 README 全面更新：backend/frontend/database 与实际结构一致 |
@@ -633,3 +638,7 @@ appForXiaoxueqi/
 | 16 | **GitHub 仓库绑定** | 项目可绑定 GitHub 仓库，查看仓库信息（owner/repo/分支/URL） |
 | 17 | **GitHub 只读数据展示** | 查看绑定仓库的分支列表、最近提交、Issue 列表、Pull Request 列表 |
 | 18 | **GitHub SSL 兼容** | JDK 24 证书库适配，`GitHubApiClient` 配置信任管理器 |
+| 19 | **源码浏览与编辑** | 文件树弹窗：左侧目录树 + 右侧源码高亮展示，支持本地编辑（等宽字体深色编辑器） |
+| 20 | **文件锁与上传排队** | 多人编辑同一文件时上传串行化：先到先上传，后到排队等待，轮到后自动拉取远端版本做差分对比 |
+| 21 | **上传队列控制台** | Dashboard 底部「文件上传队列」卡片，实时展示等待状态，轮到自己时可一键跳转确认上传 |
+| 22 | **项目/任务改负责人** | 管理员可更改项目负责人和任务负责人，下拉选人实时刷新，排除管理员 |
