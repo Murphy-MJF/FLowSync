@@ -31,11 +31,10 @@
       </el-table-column>
       <el-table-column prop="priority" label="优先级" width="80" />
       <el-table-column prop="dueDate" label="截止日期" width="110" />
-      <el-table-column label="操作" width="180">
+      <el-table-column label="操作" width="240">
         <template #default="{ row }">
-          <!-- 负责人可全字段编辑 -->
           <el-button v-if="isLeader || isAdmin" size="small" @click="openDialog(row)">编辑</el-button>
-          <!-- 组员只能更新自己任务的状态 -->
+          <el-button v-if="isAdmin || isProjectOwner(row)" size="small" type="primary" @click="openAssignDialog(row)">改负责人</el-button>
           <el-button v-if="canUpdateStatus(row)" size="small" type="warning" @click="openStatusDialog(row)">更新状态</el-button>
           <el-popconfirm v-if="isLeader || isAdmin" title="确认删除？" @confirm="handleDelete(row.id)">
             <template #reference>
@@ -105,6 +104,28 @@
         <el-button type="primary" @click="handleStatusUpdate">确认更新</el-button>
       </template>
     </el-dialog>
+
+    <!-- 管理员更改任务负责人弹窗 -->
+    <el-dialog title="更改负责人" v-model="assignDialogVisible" width="400px">
+      <el-form :model="assignForm" label-width="80px">
+        <el-form-item label="任务">
+          <el-input :model-value="assignForm.title" disabled />
+        </el-form-item>
+        <el-form-item label="当前负责人">
+          <el-input :model-value="assignForm.oldAssignee" disabled />
+        </el-form-item>
+        <el-form-item label="新负责人">
+          <el-select v-model="assignForm.newAssigneeId" style="width:100%">
+            <el-option v-for="u in users" :key="u.id" :label="u.realName + ' (' + u.role + ')'"
+                       :value="u.id" :disabled="u.role === '管理员'" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="assignDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleAssignSave" :loading="assignSaving">确认更改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -126,6 +147,9 @@ const selectedIds = ref([])
 const filterProjectId = ref(null)
 const dialogVisible = ref(false)
 const statusDialogVisible = ref(false)
+const assignDialogVisible = ref(false)
+const assignSaving = ref(false)
+const assignForm = ref({})
 const form = ref({})
 const statusForm = ref({})
 const statuses = ['未开始', '进行中', '已完成']
@@ -152,8 +176,12 @@ async function fetchTasks() {
 }
 
 function canUpdateStatus(row) {
-  // 组员只能更新分配给自己且不是已完成的任务
   return row.assigneeId === props.currentUser?.id && row.status !== '已完成'
+}
+
+function isProjectOwner(row) {
+  const p = projects.value.find(x => x.id === row.projectId)
+  return p && p.ownerId === props.currentUser?.id
 }
 
 function openDialog(row) {
@@ -204,6 +232,32 @@ async function handleBatchDelete() {
       fetchTasks()
     }
   } finally { batchDeleting.value = false }
+}
+
+function openAssignDialog(row) {
+  assignForm.value = {
+    id: row.id,
+    title: row.title,
+    oldAssignee: row.assigneeName,
+    newAssigneeId: row.assigneeId
+  }
+  assignDialogVisible.value = true
+}
+
+async function handleAssignSave() {
+  assignSaving.value = true
+  try {
+    const task = tasks.value.find(t => t.id === assignForm.value.id)
+    if (task) {
+      task.assigneeId = assignForm.value.newAssigneeId
+      const res = await saveTask(task)
+      if (res.success) {
+        ElMessage.success('负责人已更改')
+        assignDialogVisible.value = false
+        fetchTasks()
+      }
+    }
+  } finally { assignSaving.value = false }
 }
 
 async function handleDelete(id) {

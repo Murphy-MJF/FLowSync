@@ -127,6 +127,24 @@ public class GitHubApiClient {
         return resp.getBody() != null ? resp.getBody() : List.of();
     }
 
+    // ---- Tree & Contents ----
+
+    public Map<String, Object> getTree(String token, String owner, String repo, String branch) {
+        // First get the branch's latest commit SHA
+        Map<String, Object> ref = callApi(token,
+                "/repos/" + owner + "/" + repo + "/git/ref/heads/" + branch);
+        String sha = (String) ((Map<String, Object>) ref.get("object")).get("sha");
+        // Then get the tree recursively
+        return callApi(token,
+                "/repos/" + owner + "/" + repo + "/git/trees/" + sha + "?recursive=1");
+    }
+
+    public Map<String, Object> getContents(String token, String owner, String repo,
+                                            String path, String branch) {
+        return callApi(token,
+                "/repos/" + owner + "/" + repo + "/contents/" + path + "?ref=" + branch);
+    }
+
     // ---- Helpers ----
 
     private Map<String, Object> callApi(String token, String path) {

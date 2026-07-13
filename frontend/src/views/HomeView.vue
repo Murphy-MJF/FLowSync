@@ -106,10 +106,10 @@
           <span>总结管理</span>
         </el-menu-item>
 
-        <!-- 管理员 -->
-        <el-menu-item v-if="isAdmin" index="admin">
-          <el-icon><Setting /></el-icon>
-          <span>系统管理</span>
+        <!-- 成员管理（管理员可见完整功能） -->
+        <el-menu-item index="admin">
+          <el-icon><UserFilled /></el-icon>
+          <span>成员管理</span>
         </el-menu-item>
 
         <!-- GitHub -->
@@ -119,10 +119,6 @@
         </el-menu-item>
 
         <!-- 系统信息 -->
-        <el-menu-item index="members">
-          <el-icon><UserFilled /></el-icon>
-          <span>成员列表</span>
-        </el-menu-item>
         <el-menu-item index="profile">
           <el-icon><Setting /></el-icon>
           <span>个人信息</span>
@@ -160,7 +156,6 @@ import AiTaskPlanPanel from '../components/AiTaskPlanPanel.vue'
 import TaskPanel from '../components/TaskPanel.vue'
 import TaskLogPanel from '../components/TaskLogPanel.vue'
 import SummaryPanel from '../components/SummaryPanel.vue'
-import MemberListPanel from '../components/MemberListPanel.vue'
 import AdminPanel from '../components/AdminPanel.vue'
 import GitHubPanel from '../components/GitHubPanel.vue'
 import ProfilePanel from '../components/ProfilePanel.vue'
@@ -212,7 +207,6 @@ const panelMap = {
   'tasks': TaskPanel,
   'task-logs': TaskLogPanel,
   'summaries': SummaryPanel,
-  'members': MemberListPanel,
   'github': GitHubPanel,
   'admin': AdminPanel,
   'profile': ProfilePanel

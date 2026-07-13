@@ -42,6 +42,11 @@
               <el-table-column label="最后提交" show-overflow-tooltip>
                 <template #default="{ row }">{{ (row.commit && row.commit.sha || '').substring(0,7) }} - {{ row.commit && row.commit.commit ? row.commit.commit.message : '' }}</template>
               </el-table-column>
+              <el-table-column label="操作" width="90">
+                <template #default="{ row }">
+                  <el-button size="small" @click="openTreeDialog(row.name)">查看源码</el-button>
+                </template>
+              </el-table-column>
             </el-table>
           </el-tab-pane>
           <el-tab-pane label="提交" name="commits">
@@ -108,14 +113,40 @@
         <el-button type="primary" @click="handleBindRepo" :loading="binding" :disabled="!selectedRepo">确认绑定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 文件树 + 源码查看弹窗 -->
+    <el-dialog :title="'源码浏览 — ' + selectedBranch" v-model="treeVisible" width="800px" top="3vh">
+      <div style="display:flex;height:500px">
+        <!-- 文件树 -->
+        <div style="width:280px;overflow-y:auto;border-right:1px solid #ebeef5;padding-right:8px">
+          <el-tree :data="fileTree" :props="{ label: 'name', children: 'children' }"
+                   @node-click="handleFileClick" highlight-current node-key="path"
+                   :filter-node-method="filterNode" style="font-size:13px" default-expand-all />
+        </div>
+        <!-- 源码 -->
+        <div style="flex:1;overflow:auto;padding-left:12px">
+          <div v-if="!selectedFile" style="color:#909399;text-align:center;margin-top:100px">
+            点击左侧文件查看源码
+          </div>
+          <div v-else>
+            <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+              <strong>{{ selectedFile.path }}</strong>
+              <el-tag size="small">{{ selectedFile.size }} bytes</el-tag>
+            </div>
+            <pre v-if="selectedFile.isText" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;overflow:auto;max-height:420px;font-size:13px;line-height:1.5">{{ selectedFile.content }}</pre>
+            <div v-else style="color:#E6A23C;padding:40px;text-align:center">二进制文件，无法预览</div>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo,
-         githubBranches, githubCommits, githubIssues, githubPulls } from '../api'
-import { ElMessage } from 'element-plus'
+import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
+         githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents } from '../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 defineProps({ currentUser: Object })
 
@@ -127,6 +158,12 @@ const ghRepos = ref([])
 const selectedRepo = ref(null)
 const repoLoading = ref(false)
 const binding = ref(false)
+
+// file tree
+const treeVisible = ref(false)
+const selectedBranch = ref('')
+const fileTree = ref([])
+const selectedFile = ref(null)
 
 const activeTab = ref('branches')
 const branches = ref([])
@@ -202,5 +239,82 @@ async function handleBindRepo() {
       loadRepo()
     }
   } finally { binding.value = false }
+}
+
+async function handleUnbind() {
+  try {
+    await ElMessageBox.confirm('确认解绑仓库？', '提示', { type: 'warning' })
+  } catch { return }
+  const res = await githubUnbindRepo(selectedProjectId.value)
+  if (res.success) {
+    ElMessage.success('已解绑')
+    repo.value = null
+  }
+}
+
+// ---- 文件树 ----
+function buildTree(treeData) {
+  const root = {}
+  for (const item of (treeData.tree || [])) {
+    const parts = item.path.split('/')
+    let current = root
+    for (let i = 0; i < parts.length; i++) {
+      if (!current[parts[i]]) current[parts[i]] = {}
+      current = current[parts[i]]
+    }
+    current._path = item.path
+    current._type = item.type
+    current._size = item.size || 0
+  }
+  const toArray = (obj, prefix) => {
+    const result = []
+    for (const key of Object.keys(obj)) {
+      if (key.startsWith('_')) continue
+      const node = { name: key, path: obj[key]._path, type: obj[key]._type, size: obj[key]._size }
+      const children = toArray(obj[key], obj[key]._path)
+      if (children.length > 0) node.children = children
+      else node.isLeaf = true
+      result.push(node)
+    }
+    return result.sort((a, b) => {
+      if (a.type === 'tree' && b.type !== 'tree') return -1
+      if (a.type !== 'tree' && b.type === 'tree') return 1
+      return a.name.localeCompare(b.name)
+    })
+  }
+  return toArray(root, '')
+}
+
+async function openTreeDialog(branch) {
+  selectedBranch.value = branch
+  selectedFile.value = null
+  treeVisible.value = true
+  try {
+    const res = await githubTree(repo.value.owner, repo.value.repoName, branch)
+    if (res.success) fileTree.value = buildTree(res.data)
+  } catch { fileTree.value = [] }
+}
+
+async function handleFileClick(node) {
+  if (node.type === 'tree') return
+  const isBinary = /\.(png|jpg|jpeg|gif|ico|pdf|zip|gz|tar|exe|dll|so|class|jar|war|mp3|mp4|avi|mov|woff|ttf|eot|otf)$/i.test(node.name)
+  if (isBinary) {
+    selectedFile.value = { path: node.path, size: node.size, isText: false }
+    return
+  }
+  try {
+    const res = await githubContents(repo.value.owner, repo.value.repoName, node.path, selectedBranch.value)
+    if (res.success) {
+      const content = res.data.content ? atob(res.data.content) : ''
+      selectedFile.value = { path: node.path, size: res.data.size || node.size, isText: true, content }
+    }
+  } catch {
+    selectedFile.value = { path: node.path, size: node.size, isText: false }
+  }
+}
+
+function filterNode(value, data) {
+  if (!value) return true
+  return data.name.toLowerCase().includes(value.toLowerCase())
 }
 </script>

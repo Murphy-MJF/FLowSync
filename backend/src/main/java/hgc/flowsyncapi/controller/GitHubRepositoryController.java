@@ -82,6 +82,13 @@ public class GitHubRepositoryController {
         return binding != null ? ApiResponse.ok(binding) : ApiResponse.fail("未绑定仓库");
     }
 
+    /** 解绑项目仓库 */
+    @DeleteMapping("/projects/{projectId}/github/repository")
+    public ApiResponse<Void> unbindRepo(@PathVariable Long projectId) {
+        repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+        return ApiResponse.ok("已解绑", null);
+    }
+
     /** 只读：仓库分支列表 */
     @GetMapping("/github/repos/{owner}/{repo}/branches")
     public ApiResponse<List<Map<String, Object>>> listBranches(@PathVariable String owner,
@@ -120,6 +127,29 @@ public class GitHubRepositoryController {
                                                                     HttpServletRequest req) {
         try {
             return ApiResponse.ok(apiClient.listPullRequests(getToken(req), owner, repo));
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    /** 获取文件树 */
+    @GetMapping("/github/repos/{owner}/{repo}/tree")
+    public ApiResponse<Map<String, Object>> getTree(@PathVariable String owner,
+                                                     @PathVariable String repo,
+                                                     @RequestParam(defaultValue = "main") String branch,
+                                                     HttpServletRequest req) {
+        try {
+            return ApiResponse.ok(apiClient.getTree(getToken(req), owner, repo, branch));
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    /** 获取文件内容 */
+    @GetMapping("/github/repos/{owner}/{repo}/contents")
+    public ApiResponse<Map<String, Object>> getContents(@PathVariable String owner,
+                                                         @PathVariable String repo,
+                                                         @RequestParam String path,
+                                                         @RequestParam(defaultValue = "main") String branch,
+                                                         HttpServletRequest req) {
+        try {
+            return ApiResponse.ok(apiClient.getContents(getToken(req), owner, repo, path, branch));
         } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
     }
 }

@@ -49,6 +49,10 @@ public class UserServiceImpl implements UserService {
         User user = userMapper.selectById(userId);
         if (user == null) throw new RuntimeException("用户不存在");
         if ("管理员".equals(user.getRole())) throw new RuntimeException("不能修改管理员角色");
+        // 降级为组员时清空 AI 额度
+        if ("组员".equals(newRole) && "负责人".equals(user.getRole())) {
+            user.setAiQuota(0);
+        }
         user.setRole(newRole);
         userMapper.updateById(user);
         user.setPassword(null);

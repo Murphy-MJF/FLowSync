@@ -90,12 +90,17 @@ export const githubRevoke = () => api.post('/github/revoke')
 export const githubRepositories = () => api.get('/github/repositories')
 export const githubBindRepo = (projectId, owner, repo) =>
   api.post(`/projects/${projectId}/github/repository`, { owner, repo })
+export const githubUnbindRepo = (projectId) => api.delete(`/projects/${projectId}/github/repository`)
 export const githubProjectStatus = (projectId) => api.get(`/projects/${projectId}/github/status`)
 export const githubBranches = (owner, repo) => api.get(`/github/repos/${owner}/${repo}/branches`)
 export const githubCommits = (owner, repo, branch) =>
   api.get(`/github/repos/${owner}/${repo}/commits`, { params: { branch } })
 export const githubIssues = (owner, repo) => api.get(`/github/repos/${owner}/${repo}/issues`)
 export const githubPulls = (owner, repo) => api.get(`/github/repos/${owner}/${repo}/pulls`)
+export const githubTree = (owner, repo, branch) =>
+  api.get(`/github/repos/${owner}/${repo}/tree`, { params: { branch } })
+export const githubContents = (owner, repo, path, branch) =>
+  api.get(`/github/repos/${owner}/${repo}/contents`, { params: { path, branch } })
 
 // AI 额度
 export const getQuotaRequests = () => api.get('/admin/quota-requests')
