@@ -112,6 +112,12 @@
           <span>系统管理</span>
         </el-menu-item>
 
+        <!-- GitHub -->
+        <el-menu-item index="github">
+          <el-icon><Connection /></el-icon>
+          <span>GitHub 仓库</span>
+        </el-menu-item>
+
         <!-- 系统信息 -->
         <el-menu-item index="members">
           <el-icon><UserFilled /></el-icon>
@@ -156,6 +162,7 @@ import TaskLogPanel from '../components/TaskLogPanel.vue'
 import SummaryPanel from '../components/SummaryPanel.vue'
 import MemberListPanel from '../components/MemberListPanel.vue'
 import AdminPanel from '../components/AdminPanel.vue'
+import GitHubPanel from '../components/GitHubPanel.vue'
 import ProfilePanel from '../components/ProfilePanel.vue'
 
 const currentUser = ref(null)
@@ -206,6 +213,7 @@ const panelMap = {
   'task-logs': TaskLogPanel,
   'summaries': SummaryPanel,
   'members': MemberListPanel,
+  'github': GitHubPanel,
   'admin': AdminPanel,
   'profile': ProfilePanel
 }

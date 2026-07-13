@@ -181,8 +181,9 @@ frontend/src/
 │   ├── TaskLogPanel.vue          # 进度更新 — 进度条 + 新增弹窗
 │   ├── SummaryPanel.vue          # 总结管理 — 列表 + 新增弹窗
 │   ├── MemberListPanel.vue       # 成员列表 — 含注册时间
-│   ├── AdminPanel.vue            # 系统管理 — 邀请码 + 升降级（仅管理员可见）
-│   └── ProfilePanel.vue          # 个人信息 — 浮窗编辑电话/邮箱/密码
+│   ├── GitHubPanel.vue           # GitHub 仓库 — 绑定 + 分支/提交/Issue/PR 只读
+│   ├── AdminPanel.vue            # 系统管理 — 邀请码 + 升降级 + AI额度审批
+│   └── ProfilePanel.vue          # 个人信息 — 浮窗编辑 + GitHub 连接状态
 ├── router/index.js               # SPA 路由
 ├── api/index.js                  # Axios + JWT 拦截器 + 401 处理
 ├── App.vue
@@ -348,6 +349,8 @@ npm run serve
 | 28 | `redirect_uri is not associated` | GitHub OAuth App 回调地址与请求不匹配 | 在 GitHub 后台添加 ngrok 和 localhost 两个回调 URL |
 | 29 | SSL `PKIX path building failed` | JDK 24 默认证书库不完整，无法验证 GitHub 证书 | `GitHubApiClient` 配置信任所有证书（开发环境） |
 | 30 | 授权后无法处理回调 | 前端缺少 `/github-callback` 路由 | 新增 `GithubCallback.vue` + 路由配置 |
+| 31 | AI 拆解 `timeout of 10000ms exceeded` | DeepSeek API 响应慢，超时 10s 不够 | Axios 全局 timeout 改为 60000ms |
+| 32 | GitHub 仓库面板模板编译报错 | Vue 模板不支持 `?.` 可选链语法 | 全部改为三元表达式 `a ? a.b : ''` |
 
 ---
 
@@ -582,7 +585,7 @@ appForXiaoxueqi/
 | 2026-07-10 | AI 排除管理员：`generateTaskPlan` 查询成员时过滤管理员 |
 | 2026-07-10 | 批量删除：项目/任务多选 + 批量删除按钮 + 确认弹窗 |
 | 2026-07-10 | 项目转让：降级负责人时检测拥有项目 → 选择接手人 → 批量转让 + 降级 |
-| 2026-07-13 | GitHub 集成：OAuth 授权 + 仓库绑定 + 分支/提交/Issue/PR 只读 + GithubCallback 路由 + SSL 适配 |
+| 2026-07-13 | GitHub 集成：OAuth 授权 + 仓库绑定 + GitHubPanel（分支/提交/Issue/PR）+ GithubCallback 路由 + SSL 适配 |
 | 2026-07-10 | AI 额度系统：`ai_quota` 字段 + `ai_quota_request` 表 + 申请/审批/消耗 |
 | 2026-07-10 | 子目录 README 全面更新：backend/frontend/database 与实际结构一致 |
 | 2026-07-10 | `.gitignore` 排除私密文件：`.env`、`application.yml` + 新增 `application.example.yml` |
