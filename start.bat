@@ -13,6 +13,8 @@ echo.
 :: Load .env and set env var (inherited by child processes)
 if exist "%ROOT%\backend\.env" (
     for /f "tokens=2 delims==" %%a in ('findstr /B "DEEPSEEK_API_KEY=" "%ROOT%\backend\.env" 2^>nul') do set "DEEPSEEK_API_KEY=%%a"
+    for /f "tokens=2 delims==" %%a in ('findstr /B "GITHUB_CLIENT_ID=" "%ROOT%\backend\.env" 2^>nul') do set "GITHUB_CLIENT_ID=%%a"
+    for /f "tokens=2 delims==" %%a in ('findstr /B "GITHUB_CLIENT_SECRET=" "%ROOT%\backend\.env" 2^>nul') do set "GITHUB_CLIENT_SECRET=%%a"
 )
 if defined DEEPSEEK_API_KEY (
     echo   [OK] AI Key loaded

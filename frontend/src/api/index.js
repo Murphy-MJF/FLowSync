@@ -82,6 +82,21 @@ export const genInviteCode = () => api.post('/admin/invite-code')
 export const changeUserRole = (data) => api.post('/admin/change-role', data)
 export const getTransferCandidates = () => api.get('/admin/transfer-candidates')
 
+// GitHub
+export const githubConnect = (redirect) => api.get('/github/connect', { params: { redirect } })
+export const githubCallback = (code) => api.post('/github/callback', { code })
+export const githubStatus = () => api.get('/github/status')
+export const githubRevoke = () => api.post('/github/revoke')
+export const githubRepositories = () => api.get('/github/repositories')
+export const githubBindRepo = (projectId, owner, repo) =>
+  api.post(`/projects/${projectId}/github/repository`, { owner, repo })
+export const githubProjectStatus = (projectId) => api.get(`/projects/${projectId}/github/status`)
+export const githubBranches = (owner, repo) => api.get(`/github/repos/${owner}/${repo}/branches`)
+export const githubCommits = (owner, repo, branch) =>
+  api.get(`/github/repos/${owner}/${repo}/commits`, { params: { branch } })
+export const githubIssues = (owner, repo) => api.get(`/github/repos/${owner}/${repo}/issues`)
+export const githubPulls = (owner, repo) => api.get(`/github/repos/${owner}/${repo}/pulls`)
+
 // AI 额度
 export const getQuotaRequests = () => api.get('/admin/quota-requests')
 export const requestQuota = (amount) => api.post('/admin/quota-request', { amount })

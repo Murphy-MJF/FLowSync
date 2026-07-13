@@ -16,6 +16,8 @@ USE flowsync_simple;
 -- -----------------------------------------------------
 -- 1. 用户表 sys_user
 -- -----------------------------------------------------
+DROP TABLE IF EXISTS project_github_repository;
+DROP TABLE IF EXISTS github_account;
 DROP TABLE IF EXISTS ai_quota_request;
 DROP TABLE IF EXISTS invite_code;
 DROP TABLE IF EXISTS operation_log;
@@ -125,6 +127,41 @@ CREATE TABLE operation_log (
     PRIMARY KEY (id),
     CONSTRAINT fk_oplog_operator FOREIGN KEY (operator_id) REFERENCES sys_user(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+-- -----------------------------------------------------
+-- 7. GitHub 账号绑定表 github_account
+-- -----------------------------------------------------
+CREATE TABLE github_account (
+    id               BIGINT       NOT NULL AUTO_INCREMENT  COMMENT '主键',
+    user_id          BIGINT       NOT NULL                 COMMENT 'FlowSync 用户 ID',
+    github_user_id   BIGINT       NOT NULL                 COMMENT 'GitHub 用户 ID',
+    github_login     VARCHAR(100) NOT NULL                 COMMENT 'GitHub 用户名',
+    installation_id  BIGINT       DEFAULT NULL             COMMENT 'GitHub App 安装 ID',
+    access_token     VARCHAR(255) NOT NULL                 COMMENT 'OAuth Access Token',
+    status           VARCHAR(20)  NOT NULL DEFAULT 'active' COMMENT '状态：active/revoked',
+    create_time      DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '绑定时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_id (user_id),
+    CONSTRAINT fk_github_user FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='GitHub 账号绑定表';
+
+-- -----------------------------------------------------
+-- 8. 项目仓库绑定表 project_github_repository
+-- -----------------------------------------------------
+CREATE TABLE project_github_repository (
+    id              BIGINT       NOT NULL AUTO_INCREMENT  COMMENT '主键',
+    project_id      BIGINT       NOT NULL                 COMMENT '项目 ID',
+    repo_id         BIGINT       NOT NULL                 COMMENT 'GitHub 仓库 ID',
+    owner           VARCHAR(100) NOT NULL                 COMMENT '仓库所有者',
+    repo_name       VARCHAR(100) NOT NULL                 COMMENT '仓库名',
+    default_branch  VARCHAR(50)  DEFAULT 'main'           COMMENT '默认分支',
+    sync_status     VARCHAR(20)  DEFAULT 'active'         COMMENT '同步状态',
+    repo_url        VARCHAR(255) DEFAULT NULL             COMMENT '仓库 URL',
+    create_time     DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '绑定时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_project_id (project_id),
+    CONSTRAINT fk_repo_project FOREIGN KEY (project_id) REFERENCES project_info(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目仓库绑定表';
 
 -- -----------------------------------------------------
 -- 7. AI额度申请表 ai_quota_request

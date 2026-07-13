@@ -36,3 +36,9 @@ springdoc:
 # 在 backend\.env 中填写 DEEPSEEK_API_KEY=sk-xxx
 deepseek:
   api-key: ${DEEPSEEK_API_KEY:}
+
+github:
+  app-id: ${GITHUB_APP_ID:}
+  client-id: ${GITHUB_CLIENT_ID:}
+  client-secret: ${GITHUB_CLIENT_SECRET:}
+  private-key: ${GITHUB_PRIVATE_KEY:}

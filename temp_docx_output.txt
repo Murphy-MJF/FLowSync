@@ -1,0 +1,267 @@
+FlowSync
+GitHub 协作扩展实施指南
+简版 · V1.0
+文档目标
+• 把现有“项目—任务—进度—总结”流程升级为“仓库—Issue—分支—PR—验收—交付”闭环。
+• 明确接下来每个阶段要做什么、完成到什么程度，以及如何判断阶段通过。
+• 先完成可演示、可运行的最小版本，再逐步增加 AI 代码验收与自动发布。
+
+依据：《FlowSync 小组任务协同管理系统需求规格说明书》V1.0
+建议实施周期：4～6 周
+
+1. 改造目标与系统边界
+改造后的 FlowSync 不负责存储和版本管理代码，而是作为项目指挥中心，与 GitHub 形成双向协作。
+组成
+主要职责
+不负责
+FlowSync
+项目、成员、任务、截止时间、验收结果、交付状态
+不自行实现 Git 仓库和代码版本管理
+GitHub
+仓库、Issue、分支、Commit、Pull Request、Actions、Release
+不替代 FlowSync 的教学项目管理页面
+AI
+拆任务、生成验收标准、审查 PR、总结项目
+第一版不自动合并主分支、不代替负责人最终确认
+
+目标业务流程
+最终闭环
+• 负责人创建项目并连接 GitHub。
+• AI 拆解任务，负责人确认后创建仓库、Issue 与任务分支。
+• 成员在自己的任务分支提交代码并发起 Pull Request。
+• GitHub Actions 自动测试，AI 根据任务验收标准审查修改。
+• 负责人确认合并；项目结束后生成 Release 与交付报告。
+
+必须坚持的三条规则
+FlowSync 管业务状态，GitHub 管代码事实。
+一个任务对应一个 Issue 和一个任务分支，不使用“一个成员一个长期分支”。
+AI 提供建议和验收报告，合并主分支与最终发布由负责人确认。
+2. 开发前的必要改造（阶段 0）
+现有系统采用教学简化认证。GitHub 接入将产生创建仓库、邀请成员、合并代码等高权限操作，因此必须先补齐安全基础。
+任务
+实施要求
+完成标准
+认证改造
+使用 JWT 或后端 Session；不再信任前端传来的 currentUserId
+伪造用户 ID 无法操作他人项目
+密码安全
+使用 BCrypt 存储和校验密码
+数据库中不存在明文密码
+后端权限
+项目、任务和 GitHub 写操作均校验负责人/成员身份
+成员无法创建仓库或合并 PR
+密钥管理
+GitHub App 私钥、模型 Key 通过环境变量注入
+仓库与配置文件中没有密钥
+操作审计
+记录创建仓库、邀请成员、创建分支、验收、合并、发布
+可查询操作人、时间、对象和结果
+
+阶段 0 验收条件
+• 用户不能通过修改请求参数冒充其他人。
+• 成员无法调用负责人专属接口。
+• 所有 GitHub 高风险写操作都有审计记录。
+
+3. 分阶段实施路线
+阶段 1：连接 GitHub 与绑定仓库
+要做的功能
+实现内容
+验收标准
+GitHub App
+创建 GitHub App，配置回调地址、Webhook 地址和最小权限
+用户可完成安装与授权
+账号绑定
+保存 GitHub user id、login、installation id，不保存明文 PAT
+个人信息页显示“已连接”
+绑定仓库
+先支持选择已有仓库；后续再支持自动创建
+项目页可查看仓库名、默认分支和链接
+只读同步
+读取分支、提交、Issue、PR 和 Actions 状态
+FlowSync 能展示真实 GitHub 状态
+
+本阶段暂时不做
+• 不自动创建分支、不自动合并 PR、不做 AI 代码审查。
+• 优先验证授权、仓库绑定和数据读取是否稳定。
+
+阶段 2：任务发布到 GitHub
+FlowSync 操作
+GitHub 结果
+关键规则
+负责人确认 AI 拆解
+创建 Milestone、Issue
+每个任务必须包含验收标准
+发布任务
+从 develop/main 创建 task/{taskId}-{slug} 分支
+一个任务一个分支
+分配成员
+设置 Issue Assignee 或邀请协作者
+成员 GitHub 账号必须先绑定
+成员 Push
+Webhook 通知 FlowSync
+自动记录最近提交和代码进度
+任务状态同步
+Issue/PR 状态映射为 FlowSync 状态
+GitHub 为代码状态事实来源
+
+阶段 3：PR、自动测试与负责人验收
+成员在 FlowSync 点击“提交验收”，系统创建或关联 Pull Request。
+PR 模板自动写入任务编号、实现内容、验收标准和自测说明。
+GitHub Actions 执行后端测试、前端构建和代码检查。
+FlowSync 接收 check_run / workflow_run Webhook，展示通过或失败。
+负责人查看代码差异、测试结果后选择“通过并合并”或“要求修改”。
+阶段 4：AI 验收与项目交付
+AI 读取任务说明、验收标准、PR diff 和测试结果，输出结构化验收报告。
+项目最终验收检查未合并 PR、失败测试、未关闭阻塞 Issue 和缺失文档。
+通过后创建 GitHub Release，并生成项目总结、运行说明、贡献统计和已知问题。
+推荐开发顺序
+• 先完成阶段 0 和阶段 1，再开始任何 GitHub 写操作。
+• 课程展示的最小可用版本做到阶段 2 即可形成明显亮点。
+• 阶段 3 是完整协作闭环；阶段 4 作为创新能力和后续论文/竞赛扩展。
+
+4. 第一版需要新增的数据结构
+表名
+用途
+建议核心字段
+github_account
+绑定 FlowSync 用户和 GitHub 账号
+user_id, github_user_id, github_login, installation_id, status
+project_github_repository
+绑定项目和仓库
+project_id, repo_id, owner, repo_name, default_branch, sync_status
+task_github_binding
+绑定任务、Issue、分支和 PR
+task_id, issue_number, branch_name, pr_number, ci_status, merged_at
+github_webhook_event
+保存事件并防止重复处理
+delivery_id, event_type, action, process_status, error_message
+task_acceptance
+保存测试与 AI/人工验收结论
+task_id, criteria, test_result, ai_result, final_result, reviewer_id
+operation_audit
+记录高风险操作
+operator_id, action, target_type, target_id, result, create_time
+
+5. 第一版建议新增接口
+模块
+接口示例
+作用
+连接
+GET /api/github/connectGET /api/github/callbackGET /api/github/status
+GitHub App 授权与连接状态
+仓库
+POST /api/projects/{id}/github/repositoryGET /api/projects/{id}/github/status
+绑定/创建仓库并查看同步状态
+任务
+POST /api/tasks/{id}/github/publishGET /api/tasks/{id}/github/activity
+创建 Issue/分支并读取提交进度
+验收
+POST /api/tasks/{id}/pull-requestPOST /api/tasks/{id}/acceptance/run
+创建 PR、触发测试和验收
+Webhook
+POST /api/github/webhook
+接收 push、issue、PR、workflow 等事件
+交付
+POST /api/projects/{id}/delivery/checkPOST /api/projects/{id}/delivery/release
+最终检查并发布 Release
+
+6. 后端模块建议
+建议包结构
+• controller：GitHubAuthController、GitHubRepositoryController、GitHubWebhookController、GitHubAcceptanceController。
+• service：GitHubAuthService、GitHubRepositoryService、GitHubTaskService、GitHubWebhookService、AcceptanceService。
+• integration/github：GitHubApiClient、GitHubTokenProvider、GitHubWebhookVerifier。
+• 原则：Controller 不直接调用 GitHub API，所有外部调用集中在 integration 层。
+
+7. Webhook 状态同步规则
+GitHub 事件
+FlowSync 动作
+push 到任务分支
+任务自动进入“进行中”，更新最近 Commit、提交人和时间
+pull_request opened
+任务进入“待验收”，记录 PR 编号
+workflow_run completed
+更新 CI 状态；失败时显示日志入口
+pull_request review submitted
+记录审核结果和审核人
+pull_request closed + merged
+任务标记“已完成”，关闭关联 Issue
+release published
+项目标记“已交付”，保存版本号和交付链接
+
+8. 接下来立即执行的任务清单
+第一个迭代目标：只读 GitHub 集成
+• 完成后，负责人可以绑定 GitHub、为项目选择一个仓库，并在 FlowSync 中看到仓库、分支、提交、PR 和 Actions 状态。
+• 此迭代不允许 FlowSync 修改 GitHub，先把授权和数据同步做稳定。
+
+顺序
+任务
+负责人建议
+完成标志
+1
+把登录认证升级为 JWT/Session，增加后端角色校验
+后端组
+越权测试通过
+2
+在 GitHub 创建测试 Organization、模板仓库和 GitHub App
+负责人
+完成一次安装授权
+3
+新增 6 张 GitHub/审计相关表并编写实体与 Mapper
+后端组
+数据库迁移成功
+4
+实现 connect、callback、status 三个授权接口
+后端组
+个人信息页显示 GitHub 用户名
+5
+实现选择已有仓库并保存项目绑定
+前后端
+项目页显示仓库信息
+6
+实现只读读取分支、Commit、Issue、PR、Actions
+后端组
+页面数据与 GitHub 一致
+7
+实现 Webhook 签名验证和事件落库
+后端组
+push 后事件可被正确接收
+8
+补充权限、异常、重复事件和断线重连测试
+测试组
+第一阶段验收通过
+
+第一阶段验收清单
+□ 负责人能绑定和解除 GitHub；成员不能替负责人绑定项目仓库。
+□ 项目能绑定一个已有仓库，刷新页面后信息仍然存在。
+□ FlowSync 能展示默认分支、最近提交、Issue、PR 和 Actions 状态。
+□ Webhook 使用签名校验；重复 delivery_id 不会重复处理。
+□ GitHub API 失败时有明确错误提示，数据库状态不会被写坏。
+□ 日志中不输出 access token、私钥和模型 API Key。
+9. 里程碑建议
+周次
+里程碑
+可演示结果
+第 1 周
+安全基础 + GitHub App 授权
+账号可连接，权限边界清晰
+第 2 周
+仓库绑定 + 只读数据展示
+FlowSync 可查看真实仓库状态
+第 3 周
+AI 任务发布为 Issue/分支
+任务管理进入真实 GitHub 协作
+第 4 周
+Webhook 双向同步 + PR
+成员提交后进度自动更新
+第 5 周
+GitHub Actions + 人工验收
+测试通过后负责人合并
+第 6 周
+AI 验收 + Release 交付
+形成完整创新演示闭环
+
+最终原则
+• 不要一开始就做“AI 自动整合全部代码”。先打通授权、仓库绑定、任务发布和状态同步。
+• 每完成一个阶段，都要能够独立演示、独立验收，不依赖下一阶段才能运行。
+• 正式版本优先使用 GitHub Organization；个人仓库只作为教学演示或早期原型。
+

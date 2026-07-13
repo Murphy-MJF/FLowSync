@@ -65,13 +65,31 @@
         </el-form-item>
       </el-form>
     </el-dialog>
+
+    <!-- GitHub 连接 -->
+    <el-card style="max-width:600px;margin-top:20px">
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>GitHub 连接</span>
+          <el-tag :type="ghConnected ? 'success' : 'info'">{{ ghConnected ? '已连接' : '未连接' }}</el-tag>
+        </div>
+      </template>
+      <div v-if="ghConnected">
+        <p>已连接账号：<strong>{{ ghLogin }}</strong></p>
+        <el-button size="small" type="danger" @click="handleGithubRevoke" :loading="ghLoading">解除绑定</el-button>
+      </div>
+      <div v-else>
+        <p style="color:#909399;margin-bottom:12px">连接 GitHub 后可绑定仓库并查看代码状态</p>
+        <el-button size="small" type="primary" @click="handleGithubConnect" :loading="ghLoading">连接 GitHub</el-button>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import { updatePassword, updateProfile } from '../api'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { updatePassword, updateProfile, githubStatus, githubConnect, githubCallback, githubRevoke } from '../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ currentUser: Object })
 
@@ -109,6 +127,62 @@ function openDialog(type) {
   if (type === 'phone') phoneForm.value = props.currentUser.phone || ''
   if (type === 'email') emailForm.value = props.currentUser.email || ''
   dialogVisible.value = true
+}
+
+// GitHub
+const ghConnected = ref(false)
+const ghLogin = ref('')
+const ghLoading = ref(false)
+
+onMounted(async () => {
+  const res = await githubStatus()
+  if (res.success && res.data) {
+    ghConnected.value = res.data.connected
+    ghLogin.value = res.data.login || ''
+  }
+})
+
+async function handleGithubConnect() {
+  ghLoading.value = true
+  try {
+    const res = await githubConnect(window.location.origin)
+    if (res.success) {
+      // 弹出 GitHub 授权窗口
+      const win = window.open(res.data.url, 'github-oauth', 'width=800,height=700')
+      const checkInterval = setInterval(async () => {
+        if (win.closed) {
+          clearInterval(checkInterval)
+          // 窗口关闭后，提示用户输入 code（简化方案）
+          try {
+            const { value } = await ElMessageBox.prompt('请粘贴 GitHub 返回的授权码（URL中 ?code= 后面的部分）', '输入授权码')
+            if (value) {
+              const cbRes = await githubCallback(value.trim())
+              if (cbRes.success) {
+                ghConnected.value = true
+                ghLogin.value = cbRes.data.login
+                ElMessage.success('GitHub 已连接')
+              }
+            }
+          } catch { /* cancelled */ }
+        }
+      }, 500)
+    }
+  } finally { ghLoading.value = false }
+}
+
+async function handleGithubRevoke() {
+  try {
+    await ElMessageBox.confirm('确认解除 GitHub 绑定？', '提示', { type: 'warning' })
+  } catch { return }
+  ghLoading.value = true
+  try {
+    const res = await githubRevoke()
+    if (res.success) {
+      ghConnected.value = false
+      ghLogin.value = ''
+      ElMessage.success('已解除绑定')
+    }
+  } finally { ghLoading.value = false }
 }
 
 function resetDialog() {
