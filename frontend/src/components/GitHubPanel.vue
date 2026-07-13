@@ -305,12 +305,19 @@ async function handleFileClick(node) {
   try {
     const res = await githubContents(repo.value.owner, repo.value.repoName, node.path, selectedBranch.value)
     if (res.success) {
-      const content = res.data.content ? atob(res.data.content) : ''
+      const content = res.data.content ? decodeBase64(res.data.content) : ''
       selectedFile.value = { path: node.path, size: res.data.size || node.size, isText: true, content }
     }
   } catch {
     selectedFile.value = { path: node.path, size: node.size, isText: false }
   }
+}
+
+function decodeBase64(base64) {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new TextDecoder('utf-8').decode(bytes)
 }
 
 function filterNode(value, data) {
