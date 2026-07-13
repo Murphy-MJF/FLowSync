@@ -130,11 +130,26 @@
           </div>
           <div v-else>
             <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-              <strong>{{ selectedFile.path }}</strong>
-              <el-tag size="small">{{ selectedFile.size }} bytes</el-tag>
+              <div style="display:flex;align-items:center;gap:12px">
+                <strong>{{ selectedFile.path }}</strong>
+                <el-tag size="small">{{ selectedFile.size }} bytes</el-tag>
+                <el-tag v-if="isEditing" type="warning" size="small">编辑中</el-tag>
+              </div>
+              <div style="display:flex;gap:6px">
+                <template v-if="!isEditing && selectedFile.isText">
+                  <el-button size="small" @click="startEdit">编辑</el-button>
+                </template>
+                <template v-if="isEditing">
+                  <el-button size="small" type="primary" @click="saveEdit">应用修改</el-button>
+                  <el-button size="small" @click="cancelEdit">取消</el-button>
+                </template>
+              </div>
             </div>
-            <pre v-if="selectedFile.isText" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;overflow:auto;max-height:520px;font-size:13px;line-height:1.5">{{ selectedFile.content }}</pre>
-            <div v-else style="color:#E6A23C;padding:40px;text-align:center">二进制文件，无法预览</div>
+            <pre v-if="selectedFile.isText && !isEditing" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;overflow:auto;max-height:520px;font-size:13px;line-height:1.5">{{ selectedFile.content }}</pre>
+            <el-input v-if="selectedFile.isText && isEditing" type="textarea" v-model="editContent"
+                      style="max-height:520px" :rows="20" resize="vertical"
+                      :input-style="{ fontFamily:'Consolas,monospace', fontSize:'13px', lineHeight:'1.5', background:'#1e1e1e', color:'#d4d4d4' }" />
+            <div v-if="!selectedFile.isText" style="color:#E6A23C;padding:40px;text-align:center">二进制文件，无法预览</div>
           </div>
         </div>
       </div>
@@ -164,6 +179,8 @@ const treeVisible = ref(false)
 const selectedBranch = ref('')
 const fileTree = ref([])
 const selectedFile = ref(null)
+const isEditing = ref(false)
+const editContent = ref('')
 
 const activeTab = ref('branches')
 const branches = ref([])
@@ -318,6 +335,21 @@ function decodeBase64(base64) {
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return new TextDecoder('utf-8').decode(bytes)
+}
+
+function startEdit() {
+  editContent.value = selectedFile.value.content
+  isEditing.value = true
+}
+
+function saveEdit() {
+  selectedFile.value.content = editContent.value
+  selectedFile.value.size = new Blob([editContent.value]).size
+  isEditing.value = false
+}
+
+function cancelEdit() {
+  isEditing.value = false
 }
 
 function filterNode(value, data) {
