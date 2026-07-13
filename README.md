@@ -578,3 +578,43 @@ appForXiaoxueqi/
 | 2026-07-10 | AI 额度系统：`ai_quota` 字段 + `ai_quota_request` 表 + 申请/审批/消耗 |
 | 2026-07-10 | 子目录 README 全面更新：backend/frontend/database 与实际结构一致 |
 | 2026-07-10 | `.gitignore` 排除私密文件：`.env`、`application.yml` + 新增 `application.example.yml` |
+
+---
+
+## 十三、需求规格说明书扩展实现对照
+
+以下是《FlowSync 需求规格说明书》第九章「扩展空间」中列出的 8 项扩展方向及其实现状态。
+
+| # | 扩展方向 | 原始建议 | 实现方式 | 状态 |
+|---|----------|----------|----------|------|
+| 1 | 后端权限校验 | 在 Service 层加入 `isProjectOwner` 和 `listVisibleProjectIds` 校验 | `ProjectInfoService` 实现两方法，`JwtInterceptor` 注入 userId，所有 Controller 调用前校验 | ✅ 已实现 |
+| 2 | 密码加密 | 引入 BCrypt 加密，登录时加密比对 | `PasswordConfig` Bean + `AuthServiceImpl` 登录用 `matches()` 验证、注册用 `encode()` 加密存储 | ✅ 已实现 |
+| 3 | 认证机制 | 引入 JWT Token 认证，前端请求头携带 Authorization | `JwtUtils` + `JwtInterceptor` 拦截 `/api/**`，前端 Axios 拦截器自动附加 `Bearer <token>`，401 自动跳登录 | ✅ 已实现 |
+| 4 | 级联删除 | 删除项目时级联删除关联的任务、进度记录、总结 | `ProjectInfoServiceImpl.deleteProject()` 加 `@Transactional`，按 FK 依赖逆序删除；`init.sql` 外键加 `ON DELETE CASCADE` | ✅ 已实现 |
+| 5 | 分页查询 | 引入 MyBatis-Plus 分页插件，支持分页查询 | `MybatisPlusConfig` 注册 `PaginationInnerInterceptor`，操作日志列表支持分页 | ✅ 已实现 |
+| 6 | API Key 管理 | API Key 通过环境变量注入，不写入代码仓库 | DeepSeek API Key 通过 `DEEPSEEK_API_KEY` 环境变量或 `backend/.env` 注入，`application.yml` 使用 `${DEEPSEEK_API_KEY:}` 占位。`.env` 和 `application.yml` 均加入 `.gitignore` | ✅ 已实现（使用 DeepSeek 替代千问） |
+| 7 | 数据隔离 | 成员只能看到自己所在项目的数据 | `listVisibleProjectIds()` 按角色返回可见项目 ID：管理员→全部、负责人→自己的、组员→被分配任务的。`TaskController` 配合过滤任务列表 | ✅ 已实现 |
+| 8 | 操作日志 | 新增操作日志表，记录关键操作的执行人和时间 | `operation_log` 表 + `OperationLogService`，所有 Controller 在登录、注册、CRUD、角色变更等操作时写入日志 | ✅ 已实现 |
+
+---
+
+## 十四、额外扩展（超出需求规格说明书范围）
+
+以下功能为项目自主新增，未在原需求规格说明书中定义。
+
+| # | 功能 | 说明 |
+|---|------|------|
+| 1 | **管理员角色** | 新增 `管理员` 角色，拥有最高权限：查看所有项目/任务/进度、生成邀请码、升降级用户、审批 AI 额度 |
+| 2 | **邀请码系统** | 注册为「项目负责人」需管理员生成的邀请码（8 位，2 分钟有效），`invite_code` 表存储 |
+| 3 | **AI 额度系统** | 负责人使用 AI 拆解消耗额度（每次 -1），可向管理员申请次数，管理员审批（批准/拒绝，可调整数量），管理员自身不限额度 |
+| 4 | **项目所有权转让** | 管理员降级负责人时自动检测其拥有的项目 → 弹出转让弹窗 → 选择其他负责人接手 → 批量转让 + 降级，防止"幽灵项目" |
+| 5 | **批量删除** | 项目列表和任务列表支持多选 + 批量删除，带确认弹窗 |
+| 6 | **AI 任务拆解（DeepSeek）** | 接入 DeepSeek `deepseek-chat` 模型（OpenAI 兼容 API，免费额度），支持项目目标拆解为任务列表 + 智能推荐负责人。未配置 Key 时自动降级为固定模板 |
+| 7 | **一键启动脚本** | `start.bat`（CMD）/ `start.ps1`（PowerShell），自动读取 `.env` 注入 API Key，后端 + 前端 + ngrok 三窗口并行启动 |
+| 8 | **内网穿透** | 集成 ngrok，自动生成 HTTPS 公网地址，WebSocket 自适应 `ws://` / `wss://` |
+| 9 | **个人信息浮窗编辑** | 电话、邮箱、密码不直接展示在页面，改为行尾「修改」按钮 → 弹窗编辑 |
+| 10 | **注册角色选择** | 注册时可选择「组员」（直接注册）或「项目负责人」（需邀请码） |
+| 11 | **退出确认** | 退出登录时弹出确认弹窗，防止误操作 |
+| 12 | **管理员全透明** | 管理员可查看系统中所有项目、任务、进度，`isProjectOwner()` 对管理员直接返回 true |
+| 13 | **AI 排除管理员** | AI 拆解时查询成员列表自动过滤管理员，管理员不作为任务候选人 |
+| 14 | **角色热更新** | 升降级操作后自动刷新用户列表，无需手动 F5 |
