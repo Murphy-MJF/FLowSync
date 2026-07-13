@@ -1,18 +1,13 @@
-package hgc.flowsyncapi.common;
+﻿package hgc.flowsyncapi.common;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * 统一 API 响应封装
- * @param <T> 业务数据类型
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ApiResponse<T> {
-
     private boolean success;
     private String message;
     private T data;

@@ -1,4 +1,4 @@
-package hgc.flowsyncapi.dto;
+﻿package hgc.flowsyncapi.dto;
 
 import lombok.Data;
 

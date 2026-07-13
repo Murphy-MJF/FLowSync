@@ -1,25 +1,37 @@
-package hgc.flowsyncapi.service;
+﻿package hgc.flowsyncapi.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import hgc.flowsyncapi.entity.ProjectInfo;
+import hgc.flowsyncapi.mapper.ProjectInfoMapper;
+import org.springframework.stereotype.Service;
+import jakarta.annotation.Resource;
 import java.util.List;
 
-public interface ProjectInfoService {
-    /** 获取当前用户可见的项目列表（负责人：自己的项目；组员：自己被分配任务的项目） */
-    List<ProjectInfo> listProjects(Long currentUserId);
+@Service
+public class ProjectInfoService {
+    @Resource
+    private ProjectInfoMapper projectInfoMapper;
 
-    /** 新建或编辑项目（编辑时校验是否为负责人） */
-    ProjectInfo saveProject(ProjectInfo project, Long currentUserId);
+    public List<ProjectInfo> listProjects() {
+        return projectInfoMapper.selectList(
+            new LambdaQueryWrapper<ProjectInfo>().orderByDesc(ProjectInfo::getId)
+        );
+    }
 
-    /** 删除项目（校验是否为负责人） */
-    void deleteProject(Long id, Long currentUserId);
+    public ProjectInfo getProjectById(Long id) {
+        return projectInfoMapper.selectById(id);
+    }
 
-    /** 检查用户是否为项目负责人 */
-    boolean isProjectOwner(Long projectId, Long userId);
+    public ProjectInfo saveProject(ProjectInfo project) {
+        if (project.getId() == null) {
+            projectInfoMapper.insert(project);
+        } else {
+            projectInfoMapper.updateById(project);
+        }
+        return project;
+    }
 
-    /** 获取用户可见的项目 ID 列表 */
-    List<Long> listVisibleProjectIds(Long userId);
-    /** 获取用户拥有的项目列表 */
-    List<ProjectInfo> listOwnedProjects(Long userId);
-    /** 转让项目所有权 */
-    int transferOwnership(Long fromUserId, Long toUserId);
+    public void deleteProject(Long id) {
+        projectInfoMapper.deleteById(id);
+    }
 }

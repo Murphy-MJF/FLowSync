@@ -1,13 +1,40 @@
-package hgc.flowsyncapi.service;
+﻿package hgc.flowsyncapi.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import hgc.flowsyncapi.entity.TaskInfo;
+import hgc.flowsyncapi.mapper.TaskInfoMapper;
+import org.springframework.stereotype.Service;
+import jakarta.annotation.Resource;
 import java.util.List;
 
-public interface TaskInfoService {
-    List<TaskInfo> listTasks(Long projectId);
-    TaskInfo saveTask(TaskInfo task, Long currentUserId);
-    TaskInfo getById(Long id);
-    /** 组员只能更新自己任务的状态 */
-    TaskInfo updateTaskStatus(Long taskId, String status, Long currentUserId);
-    void deleteTask(Long id);
+@Service
+public class TaskInfoService {
+    @Resource
+    private TaskInfoMapper taskInfoMapper;
+
+    public List<TaskInfo> listTasks(Long projectId) {
+        LambdaQueryWrapper<TaskInfo> wrapper = new LambdaQueryWrapper<>();
+        if (projectId != null) {
+            wrapper.eq(TaskInfo::getProjectId, projectId);
+        }
+        wrapper.orderByDesc(TaskInfo::getId);
+        return taskInfoMapper.selectList(wrapper);
+    }
+
+    public TaskInfo getTaskById(Long id) {
+        return taskInfoMapper.selectById(id);
+    }
+
+    public TaskInfo saveTask(TaskInfo task) {
+        if (task.getId() == null) {
+            taskInfoMapper.insert(task);
+        } else {
+            taskInfoMapper.updateById(task);
+        }
+        return task;
+    }
+
+    public void deleteTask(Long id) {
+        taskInfoMapper.deleteById(id);
+    }
 }

@@ -1,10 +1,8 @@
-package hgc.flowsyncapi.dto;
+﻿package hgc.flowsyncapi.dto;
 
 import lombok.Data;
+import java.util.List;
 
-/**
- * AI 任务拆解请求（骨架 — 第六章跳过）
- */
 @Data
 public class AiTaskPlanRequest {
     private Long projectId;
