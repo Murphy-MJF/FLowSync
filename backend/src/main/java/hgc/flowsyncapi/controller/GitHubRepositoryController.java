@@ -2,10 +2,10 @@ package hgc.flowsyncapi.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import hgc.flowsyncapi.common.ApiResponse;
-import hgc.flowsyncapi.entity.ProjectGithubRepo;
+import hgc.flowsyncapi.entity.*;
 import hgc.flowsyncapi.integration.GitHubApiClient;
-import hgc.flowsyncapi.mapper.ProjectGithubRepoMapper;
-import hgc.flowsyncapi.service.GitHubAuthService;
+import hgc.flowsyncapi.mapper.*;
+import hgc.flowsyncapi.service.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -20,14 +20,23 @@ public class GitHubRepositoryController {
     private final GitHubAuthService authService;
     private final GitHubApiClient apiClient;
     private final ProjectGithubRepoMapper repoMapper;
+    private final GithubAccountMapper githubAccountMapper;
+    private final UserMapper userMapper;
+    private final ProjectInfoService projectInfoService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     public GitHubRepositoryController(GitHubAuthService authService,
                                        GitHubApiClient apiClient,
-                                       ProjectGithubRepoMapper repoMapper) {
+                                       ProjectGithubRepoMapper repoMapper,
+                                       GithubAccountMapper githubAccountMapper,
+                                       UserMapper userMapper,
+                                       ProjectInfoService projectInfoService) {
         this.authService = authService;
         this.apiClient = apiClient;
         this.repoMapper = repoMapper;
+        this.githubAccountMapper = githubAccountMapper;
+        this.userMapper = userMapper;
+        this.projectInfoService = projectInfoService;
     }
 
     private String getToken(HttpServletRequest req) {
@@ -124,6 +133,51 @@ public class GitHubRepositoryController {
     public ApiResponse<Void> unbindRepo(@PathVariable Long projectId) {
         repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
         return ApiResponse.ok("已解绑", null);
+    }
+
+    /** 项目提交历史（含 FlowSync 用户映射 + 数据隔离） */
+    @GetMapping("/projects/{projectId}/github/commits")
+    public ApiResponse<List<Map<String, Object>>> projectCommits(@PathVariable Long projectId,
+                                                                  HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        List<Long> visibleIds = projectInfoService.listVisibleProjectIds(userId);
+        if (!visibleIds.contains(projectId)) return ApiResponse.fail("无权查看该项目");
+
+        ProjectGithubRepo binding = repoMapper.selectOne(
+                new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+        if (binding == null) return ApiResponse.fail("该项目未绑定仓库");
+
+        try {
+            String token = getToken(req);
+            List<Map<String, Object>> commits = apiClient.listCommits(token,
+                    binding.getOwner(), binding.getRepoName(), binding.getDefaultBranch());
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Map<String, Object> c : commits) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("sha", ((String)c.get("sha")).substring(0, 7));
+                Map<String, Object> commit = (Map<String, Object>) c.get("commit");
+                Map<String, Object> author = commit != null ? (Map<String, Object>) commit.get("author") : null;
+                item.put("message", commit != null ? commit.get("message") : "");
+                item.put("author", author != null ? author.get("name") : "");
+                item.put("date", author != null ? author.get("date") : "");
+
+                Map<String, Object> ghAuthor = (Map<String, Object>) c.get("author");
+                String ghLogin = ghAuthor != null ? (String) ghAuthor.get("login") : null;
+                item.put("githubLogin", ghLogin != null ? ghLogin : "");
+                item.put("flowSyncUser", "");
+
+                if (ghLogin != null) {
+                    GithubAccount acc = githubAccountMapper.selectOne(
+                            new QueryWrapper<GithubAccount>().eq("github_login", ghLogin));
+                    if (acc != null) {
+                        User u = userMapper.selectById(acc.getUserId());
+                        if (u != null) item.put("flowSyncUser", u.getRealName());
+                    }
+                }
+                result.add(item);
+            }
+            return ApiResponse.ok(result);
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
     }
 
     /** 只读：仓库分支列表 */

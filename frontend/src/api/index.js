@@ -105,6 +105,7 @@ export const fileLockAcquire = (data) => api.post('/github/file-lock/acquire', d
 export const fileLockRelease = (data) => api.post('/github/file-lock/release', data)
 export const githubUploadFile = (owner, repo, data) =>
   api.put(`/github/repos/${owner}/${repo}/contents`, data)
+export const githubProjectCommits = (projectId) => api.get(`/projects/${projectId}/github/commits`)
 export const fileLockStatus = (params) => api.get('/github/file-lock/status', { params })
 
 // AI 额度
