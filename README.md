@@ -354,6 +354,11 @@ npm run serve
 | 33 | 源码查看中文乱码 | `atob()` 只支持 Latin-1，UTF-8 被截断 | 改用 `TextDecoder('utf-8').decode()` |
 | 34 | 仓库解绑不成功 | `handleUnbind` 函数未实现 + 缺后端接口 | 新增 `DELETE /api/projects/{id}/github/repository` + 前确认弹窗 |
 | 35 | 文件树无法横向滚动 | `overflow:auto` + `white-space:nowrap` 未正确设置 | 文件树容器 `overflow-x:auto`，节点 `white-space:nowrap`，右侧 `overflow-x:hidden` |
+| 36 | 上传功能报 `404` | 后端 `GitHubRepositoryController` 重启后未生效 | 重启后端加载新 Controller |
+| 37 | 上传后报 `Cannot read properties of null` | `openTreeDialog` 清空 `selectedFile` 后 `fileLockRelease` 拿不到 `path` | 提前保存 `filePath` 到函数顶层局部变量 |
+| 38 | 上传后仍停留在编辑界面 | 状态未清理 + `treeVisible` 未关闭 | 上传后清理所有编辑/排队状态并刷新文件树 |
+| 39 | `spring-security-crypto` ClassNotFound | Maven 依赖缓存异常 | `mvn clean package -U` 强制更新 |
+| 40 | 上传成功但仍报空值 | `filePath` 声明在 `try` 块内，外部访问不到 | 变量提升到函数顶层 |
 
 ---
 
@@ -588,6 +593,7 @@ appForXiaoxueqi/
 | 2026-07-10 | AI 排除管理员：`generateTaskPlan` 查询成员时过滤管理员 |
 | 2026-07-10 | 批量删除：项目/任务多选 + 批量删除按钮 + 确认弹窗 |
 | 2026-07-10 | 项目转让：降级负责人时检测拥有项目 → 选择接手人 → 批量转让 + 降级 |
+| 2026-07-14 | GitHub 文件上传全链路：编辑→Base64→PUT/contents→提交→释放锁→刷新树，含排队+冲突检测 |
 | 2026-07-13 | GitHub 源码浏览：文件树 + 代码高亮 + 本地编辑 + UTF-8 解码 + 文件锁排队 + 上传队列控制台 |
 | 2026-07-13 | 项目/任务改负责人：管理员可更改 + 项目负责人可改自己项目的任务负责人 |
 | 2026-07-13 | GitHub 集成：OAuth 授权 + 仓库绑定 + GitHubPanel（分支/提交/Issue/PR）+ GithubCallback 路由 + SSL 适配 |

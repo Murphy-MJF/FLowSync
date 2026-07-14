@@ -179,7 +179,7 @@
 import { ref, onMounted } from 'vue'
 import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
          githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents,
-         fileLockAcquire, fileLockRelease, fileLockStatus } from '../api'
+         fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addToQueue, removeFromQueue } from '../store/uploadQueue'
 
@@ -343,7 +343,7 @@ async function handleFileClick(node) {
     const res = await githubContents(repo.value.owner, repo.value.repoName, node.path, selectedBranch.value)
     if (res.success) {
       const content = res.data.content ? decodeBase64(res.data.content) : ''
-      selectedFile.value = { path: node.path, size: res.data.size || node.size, isText: true, content }
+      selectedFile.value = { path: node.path, size: res.data.size || node.size, isText: true, content, _sha: res.data.sha }
     }
   } catch {
     selectedFile.value = { path: node.path, size: node.size, isText: false }
@@ -423,16 +423,43 @@ async function handleUpload() {
 const currentQueueItem = ref(null)
 
 async function handleConfirmUpload() {
-  ElMessage.info('上传功能预留，当前仅本地生效')
+  if (!selectedFile.value || !repo.value) {
+    ElMessage.error('文件信息已丢失，请重新选择文件')
+    uploadReady.value = false
+    return
+  }
+  const r = repo.value
+  const filePath = selectedFile.value.path
+  const fileSha = selectedFile.value._sha
+  try {
+    const body = {
+      path: filePath,
+      content: btoa(unescape(encodeURIComponent(editContent.value))),
+      sha: fileSha || null,
+      branch: selectedBranch.value,
+      message: '[FlowSync] Update ' + filePath
+    }
+    const res = await githubUploadFile(r.owner, r.repoName, body)
+    if (res.success) {
+      ElMessage.success('文件已上传到 GitHub')
+    }
+  } catch (e) {
+    ElMessage.error('上传失败')
+  }
+  // 释放锁 + 清理状态 + 退出编辑
   await fileLockRelease({
     owner: repo.value.owner, repo: repo.value.repoName,
-    branch: selectedBranch.value, path: selectedFile.value.path
+    branch: selectedBranch.value, path: filePath
   })
   if (currentQueueItem.value) removeFromQueue(currentQueueItem.value)
+  if (lockPollTimer) { clearInterval(lockPollTimer); lockPollTimer = null }
   uploadReady.value = false
+  uploadQueue.value = null
   diffContent.value = ''
   isEditing.value = false
-  selectedFile.value.content = editContent.value
+  currentQueueItem.value = null
+  // 刷新树回到文件预览
+  openTreeDialog(selectedBranch.value)
 }
 
 function cancelUpload() {

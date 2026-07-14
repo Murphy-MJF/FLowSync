@@ -7,7 +7,9 @@ import hgc.flowsyncapi.integration.GitHubApiClient;
 import hgc.flowsyncapi.mapper.ProjectGithubRepoMapper;
 import hgc.flowsyncapi.service.GitHubAuthService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
 
@@ -18,6 +20,7 @@ public class GitHubRepositoryController {
     private final GitHubAuthService authService;
     private final GitHubApiClient apiClient;
     private final ProjectGithubRepoMapper repoMapper;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public GitHubRepositoryController(GitHubAuthService authService,
                                        GitHubApiClient apiClient,
@@ -80,6 +83,40 @@ public class GitHubRepositoryController {
         ProjectGithubRepo binding = repoMapper.selectOne(
                 new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
         return binding != null ? ApiResponse.ok(binding) : ApiResponse.fail("未绑定仓库");
+    }
+
+    /** 上传/更新文件到仓库 */
+    @PutMapping("/github/repos/{owner}/{repo}/contents")
+    public ApiResponse<Map<String, Object>> uploadFile(@PathVariable String owner,
+                                                        @PathVariable String repo,
+                                                        @RequestBody Map<String, Object> body,
+                                                        HttpServletRequest req) {
+        try {
+            String token = getToken(req);
+            String path = body.get("path").toString();
+            String content = body.get("content").toString();
+            String sha = body.containsKey("sha") && body.get("sha") != null ? body.get("sha").toString() : null;
+            String branch = body.getOrDefault("branch", "main").toString();
+            String message = body.getOrDefault("message", "[FlowSync] Update " + path).toString();
+
+            // Build GitHub API request
+            Map<String, Object> ghBody = new HashMap<>();
+            ghBody.put("message", message);
+            ghBody.put("content", content);
+            ghBody.put("branch", branch);
+            if (sha != null) ghBody.put("sha", sha);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(ghBody, headers);
+
+            String url = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + path;
+            ResponseEntity<Map> resp = restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
+            return ApiResponse.ok("文件已上传", resp.getBody());
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage());
+        }
     }
 
     /** 解绑项目仓库 */
