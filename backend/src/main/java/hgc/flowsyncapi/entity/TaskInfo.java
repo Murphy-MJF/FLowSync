@@ -22,6 +22,7 @@ public class TaskInfo {
     private String priority;
     private LocalDate dueDate;
     private String aiSuggestion;
+    private Boolean githubPublished;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

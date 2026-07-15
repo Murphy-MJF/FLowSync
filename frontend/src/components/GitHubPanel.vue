@@ -152,8 +152,14 @@
     <!-- 新建文件弹窗 -->
     <el-dialog title="新建文件" v-model="newFileVisible" width="500px">
       <el-form :model="newFileForm" label-width="80px">
-        <el-form-item label="文件路径">
-          <el-input v-model="newFileForm.path" placeholder="例如：src/utils.js" />
+        <el-form-item label="创建位置">
+          <el-input :model-value="currentBrowsePath || '(根目录)'" disabled />
+        </el-form-item>
+        <el-form-item label="文件名">
+          <el-input v-model="newFileForm.name" placeholder="例如：utils.js" />
+        </el-form-item>
+        <el-form-item label="完整路径" v-if="newFileForm.name">
+          <el-tag>{{ fullNewFilePath }}</el-tag>
         </el-form-item>
         <el-form-item label="文件内容">
           <el-input v-model="newFileForm.content" type="textarea" :rows="10" placeholder="输入文件内容" />
@@ -168,8 +174,14 @@
     <!-- 新建文件夹弹窗 -->
     <el-dialog title="新建文件夹" v-model="newFolderVisible" width="400px">
       <el-form :model="newFolderForm" label-width="80px">
-        <el-form-item label="文件夹路径">
-          <el-input v-model="newFolderForm.path" placeholder="例如：src/components" />
+        <el-form-item label="创建位置">
+          <el-input :model-value="currentBrowsePath || '(根目录)'" disabled />
+        </el-form-item>
+        <el-form-item label="文件夹名">
+          <el-input v-model="newFolderForm.name" placeholder="例如：components" />
+        </el-form-item>
+        <el-form-item label="完整路径" v-if="newFolderForm.name">
+          <el-tag>{{ fullNewFolderPath }}</el-tag>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -261,7 +273,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
          githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents,
          fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile,
@@ -289,11 +301,12 @@ const authSaving = ref(false)
 const repoListLoading = ref(false)
 
 // 新建文件/文件夹
+const currentBrowsePath = ref('')  // 当前浏览的文件夹路径
 const newFileVisible = ref(false)
 const newFolderVisible = ref(false)
 const createFileSaving = ref(false)
-const newFileForm = ref({ path: '', content: '' })
-const newFolderForm = ref({ path: '' })
+const newFileForm = ref({ name: '', content: '' })
+const newFolderForm = ref({ name: '' })
 
 // file tree
 const treeVisible = ref(false)
@@ -446,12 +459,31 @@ async function openTreeDialog(branch) {
   treeVisible.value = true
   try {
     const res = await githubTree(repo.value.owner, repo.value.repoName, branch)
-    if (res.success) fileTree.value = buildTree(res.data)
+    if (res.success) {
+      fileTree.value = buildTree(res.data)
+      currentBrowsePath.value = ''
+      return
+    }
+  } catch {}
+  // 分支不存在 → 降级到默认分支
+  try {
+    const def = repo.value.defaultBranch || 'main'
+    const r2 = await githubTree(repo.value.owner, repo.value.repoName, def)
+    if (r2.success) {
+      selectedBranch.value = def
+      fileTree.value = buildTree(r2.data)
+      currentBrowsePath.value = ''
+      ElMessage.warning('分支 ' + branch + ' 不存在，已切换到 ' + def)
+    } else { fileTree.value = [] }
   } catch { fileTree.value = [] }
 }
 
 async function handleFileClick(node) {
-  if (node.type === 'tree') return
+  if (node.type === 'tree') {
+    currentBrowsePath.value = node.path || ''  // 记录浏览路径
+    return
+  }
+  currentBrowsePath.value = (node.path || '').replace(/\/[^/]+$/, '')  // 提取所在目录
   const isBinary = /\.(png|jpg|jpeg|gif|ico|pdf|zip|gz|tar|exe|dll|so|class|jar|war|mp3|mp4|avi|mov|woff|ttf|eot|otf)$/i.test(node.name)
   if (isBinary) {
     selectedFile.value = { path: node.path, size: node.size, isText: false }
@@ -639,54 +671,66 @@ async function handleDeauthorize(row) {
 }
 
 // ---- 新建文件/文件夹 ----
+const fullNewFilePath = computed(() => {
+  const base = currentBrowsePath.value ? currentBrowsePath.value + '/' : ''
+  return base + newFileForm.value.name
+})
+
+const fullNewFolderPath = computed(() => {
+  const base = currentBrowsePath.value ? currentBrowsePath.value + '/' : ''
+  return base + newFolderForm.value.name
+})
+
 function openNewFileDialog() {
-  newFileForm.value = { path: '', content: '' }
+  newFileForm.value = { name: '', content: '' }
   newFileVisible.value = true
 }
 
 function openNewFolderDialog() {
-  newFolderForm.value = { path: '' }
+  newFolderForm.value = { name: '' }
   newFolderVisible.value = true
 }
 
 async function handleCreateFile() {
-  if (!newFileForm.value.path) return
+  if (!newFileForm.value.name) return
   createFileSaving.value = true
   try {
     const r = repo.value
+    const fp = fullNewFilePath.value
+    const branch = selectedBranch.value !== (r.defaultBranch || 'main') ? (r.defaultBranch || 'main') : selectedBranch.value
     const body = {
-      path: newFileForm.value.path,
+      path: fp, branch,
       content: btoa(unescape(encodeURIComponent(newFileForm.value.content))),
       sha: null,
-      branch: selectedBranch.value,
-      message: '[FlowSync] Create ' + newFileForm.value.path
+      message: '[FlowSync] Create ' + fp
     }
     const res = await githubUploadFile(r.owner, r.repoName, body)
     if (res.success) {
       ElMessage.success('文件已创建')
       newFileVisible.value = false
-      openTreeDialog(selectedBranch.value)
+      openTreeDialog(branch)
     }
   } finally { createFileSaving.value = false }
 }
 
 async function handleCreateFolder() {
-  if (!newFolderForm.value.path) return
+  if (!newFolderForm.value.name) return
   createFileSaving.value = true
   try {
     const r = repo.value
+    const fp = fullNewFolderPath.value
+    const branch = selectedBranch.value !== (r.defaultBranch || 'main') ? (r.defaultBranch || 'main') : selectedBranch.value
     const body = {
-      path: newFolderForm.value.path + '/.gitkeep',
+      path: fp + '/.gitkeep', branch,
       content: btoa(''),
       sha: null,
-      branch: selectedBranch.value,
-      message: '[FlowSync] Create folder ' + newFolderForm.value.path
+      message: '[FlowSync] Create folder ' + fp
     }
     const res = await githubUploadFile(r.owner, r.repoName, body)
     if (res.success) {
       ElMessage.success('文件夹已创建')
       newFolderVisible.value = false
-      openTreeDialog(selectedBranch.value)
+      openTreeDialog(branch)
     }
   } finally { createFileSaving.value = false }
 }

@@ -271,6 +271,9 @@ public class GitHubRepositoryController {
             result.put("issueUrl", issue.get("html_url"));
             result.put("branchName", branchName);
             result.put("taskId", taskId);
+            // 标记任务已发布
+            task.setGithubPublished(true);
+            taskInfoService.saveTask(task, userId);
             return ApiResponse.ok("已发布 Issue #" + issue.get("number") + " + 分支 " + branchName, result);
         } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
     }

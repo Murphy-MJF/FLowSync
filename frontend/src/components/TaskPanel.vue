@@ -35,8 +35,8 @@
         <template #default="{ row }">
           <el-button v-if="isLeader || isAdmin" size="small" @click="openDialog(row)">编辑</el-button>
           <el-button v-if="isAdmin || isProjectOwner(row)" size="small" type="primary" @click="openAssignDialog(row)">改负责人</el-button>
-          <el-button v-if="(isAdmin || isProjectOwner(row)) && !published[row.id]" size="small" type="success" @click="handlePublishTask(row)">发布到GitHub</el-button>
-          <el-button v-if="published[row.id]" size="small" type="success" plain @click="openTaskCode(row)">
+          <el-button v-if="(isAdmin || isProjectOwner(row)) && !row.githubPublished" size="small" type="success" @click="handlePublishTask(row)">发布到GitHub</el-button>
+          <el-button v-if="row.githubPublished" size="small" type="success" plain @click="openTaskCode(row)">
             {{ isProjectOwner(row) ? '查看代码' : '我的代码' }}
           </el-button>
           <el-button v-if="canUpdateStatus(row)" size="small" type="warning" @click="openStatusDialog(row)">更新状态</el-button>
@@ -134,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getTasks, saveTask, updateTaskStatus, deleteTask, batchDeleteTasks, getProjects, getUsers, githubPublishTask } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -148,8 +148,6 @@ const users = ref([])
 const loading = ref(false)
 const batchDeleting = ref(false)
 const selectedIds = ref([])
-// 使用 sessionStorage 持久化已发布状态，切换页面不丢失
-const published = reactive(JSON.parse(sessionStorage.getItem('publishedTasks') || '{}'))
 const filterProjectId = ref(null)
 const dialogVisible = ref(false)
 const statusDialogVisible = ref(false)
@@ -270,8 +268,7 @@ async function handlePublishTask(row) {
   try {
     const res = await githubPublishTask(row.id)
     if (res.success) {
-      published[row.id] = true
-      sessionStorage.setItem('publishedTasks', JSON.stringify(published))
+      row.githubPublished = true
       row._branchName = res.data.branchName
       ElMessage.success(`已发布：Issue #${res.data.issueNumber} + 分支 ${res.data.branchName}`)
     }
@@ -279,9 +276,11 @@ async function handlePublishTask(row) {
 }
 
 function openTaskCode(row) {
-  // 跳转到 GitHub 仓库面板并打开对应分支
+  // 分支名与后端 GitHubRepositoryController.publishTask 保持一致
+  const slug = row.title.replace(/[^a-zA-Z0-9一-龥]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase()
+  const branchName = 'task/' + row.id + '-' + slug
   window.dispatchEvent(new CustomEvent('nav-github-branch', {
-    detail: { projectId: row.projectId, branchName: row._branchName || ('task/' + row.id), taskTitle: row.title }
+    detail: { projectId: row.projectId, branchName, taskTitle: row.title }
   }))
 }
 

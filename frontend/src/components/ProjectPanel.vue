@@ -113,6 +113,23 @@
         <el-button type="primary" @click="handleOwnerSave" :loading="ownerSaving">确认更改</el-button>
       </template>
     </el-dialog>
+
+    <!-- 绑定仓库弹窗（选择列表） -->
+    <el-dialog title="绑定 GitHub 仓库" v-model="showBindDialog" width="550px">
+      <el-table :data="bindRepos" border size="small" max-height="350" v-loading="bindRepoLoading"
+                highlight-current-row @row-click="selectBindRepo">
+        <el-table-column prop="full_name" label="仓库" />
+        <el-table-column prop="description" label="描述" show-overflow-tooltip />
+        <el-table-column prop="language" label="语言" width="80" />
+      </el-table>
+      <div v-if="selectedBindRepo" style="margin-top:12px;color:#409EFF">
+        已选择：{{ selectedBindRepo.full_name }}
+      </div>
+      <template #footer>
+        <el-button @click="showBindDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmBindRepo" :loading="bindRepoLoading" :disabled="!selectedBindRepo">确认绑定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -136,6 +153,28 @@ const ownerForm = ref({})
 const ownerCandidates = ref([])
 const repoStatus = ref({})
 const archived = reactive({})
+// 绑定弹窗
+const showBindDialog = ref(false)
+const bindRepos = ref([])
+const selectedBindRepo = ref(null)
+const bindRepoLoading = ref(false)
+const bindProjectId = ref(null)
+
+function selectBindRepo(row) { selectedBindRepo.value = row }
+
+async function confirmBindRepo() {
+  if (!selectedBindRepo.value) return
+  bindRepoLoading.value = true
+  try {
+    const [owner, repo] = selectedBindRepo.value.full_name.split('/')
+    const res = await githubBindRepo(bindProjectId.value, owner, repo)
+    if (res.success) {
+      ElMessage.success('已绑定')
+      repoStatus.value[bindProjectId.value] = { owner, repoName: repo }
+      showBindDialog.value = false
+    }
+  } finally { bindRepoLoading.value = false }
+}
 const form = ref({})
 const statuses = ['未开始', '进行中', '已完成']
 const priorities = ['低', '中', '高']
@@ -177,20 +216,15 @@ async function handleGithubAction(row, cmd) {
       }
     } catch {}
   } else if (cmd === 'bind') {
+    bindProjectId.value = row.id
+    bindRepos.value = []
+    selectedBindRepo.value = null
+    bindRepoLoading.value = true
+    showBindDialog.value = true
     try {
       const reposRes = await githubOwnerRepositories(row.id)
-      if (reposRes.success && reposRes.data.length) {
-        const { value } = await ElMessageBox.prompt('输入 owner/repo（如：leader/my-repo）', '绑定仓库')
-        if (value) {
-          const [owner, repo] = value.split('/')
-          const res = await githubBindRepo(row.id, owner, repo)
-          if (res.success) {
-            ElMessage.success('已绑定')
-            repoStatus.value[row.id] = { owner, repoName: repo }
-          }
-        }
-      }
-    } catch {}
+      if (reposRes.success) bindRepos.value = reposRes.data || []
+    } finally { bindRepoLoading.value = false }
   }
 }
 

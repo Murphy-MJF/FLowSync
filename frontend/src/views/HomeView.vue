@@ -286,6 +286,7 @@ function handleMenuSelect(index) {
 function handleLogout() {
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('currentUser')
+  sessionStorage.removeItem('publishedTasks')
   currentUser.value = null
   activeMenu.value = 'dashboard'
 }
