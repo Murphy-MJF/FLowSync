@@ -24,6 +24,7 @@ public class GitHubRepositoryController {
     private final UserMapper userMapper;
     private final ProjectInfoService projectInfoService;
     private final TaskInfoService taskInfoService;
+    private final GithubAuthorizedRepoMapper authorizedRepoMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
     public GitHubRepositoryController(GitHubAuthService authService,
@@ -32,7 +33,8 @@ public class GitHubRepositoryController {
                                        GithubAccountMapper githubAccountMapper,
                                        UserMapper userMapper,
                                        ProjectInfoService projectInfoService,
-                                       TaskInfoService taskInfoService) {
+                                       TaskInfoService taskInfoService,
+                                       GithubAuthorizedRepoMapper authorizedRepoMapper) {
         this.authService = authService;
         this.apiClient = apiClient;
         this.repoMapper = repoMapper;
@@ -40,6 +42,7 @@ public class GitHubRepositoryController {
         this.userMapper = userMapper;
         this.projectInfoService = projectInfoService;
         this.taskInfoService = taskInfoService;
+        this.authorizedRepoMapper = authorizedRepoMapper;
     }
 
     private String getToken(HttpServletRequest req) {
@@ -55,9 +58,74 @@ public class GitHubRepositoryController {
         try {
             String token = getToken(req);
             return ApiResponse.ok(apiClient.listRepositories(token));
-        } catch (RuntimeException e) {
-            return ApiResponse.fail(e.getMessage());
-        }
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    /** 列出项目负责人名下可访问的仓库（仅已授权的） */
+    @GetMapping("/projects/{projectId}/github/repositories")
+    public ApiResponse<List<Map<String, Object>>> listOwnerRepositories(@PathVariable Long projectId,
+                                                                         HttpServletRequest req) {
+        try {
+            ProjectInfo project = projectInfoService.listProjects(
+                    AuthController.getCurrentUserId(req)).stream()
+                    .filter(p -> p.getId().equals(projectId)).findFirst().orElse(null);
+            if (project == null) return ApiResponse.fail("项目不存在");
+            String token = authService.getToken(project.getOwnerId());
+            if (token == null) return ApiResponse.fail("项目负责人未连接 GitHub");
+            List<Map<String, Object>> all = apiClient.listRepositories(token);
+            // 获取已授权的仓库列表
+            List<GithubAuthorizedRepo> authorized = authorizedRepoMapper.selectList(
+                    new QueryWrapper<GithubAuthorizedRepo>().eq("user_id", project.getOwnerId()));
+            java.util.Set<String> allowed = new HashSet<>();
+            for (GithubAuthorizedRepo a : authorized) allowed.add(a.getOwner() + "/" + a.getRepoName());
+            // 过滤：只显示已授权的仓库 + FlowSync 创建的仓库
+            List<Map<String, Object>> filtered = new ArrayList<>();
+            for (Map<String, Object> r : all) {
+                String fullName = (String) r.get("full_name");
+                if (allowed.contains(fullName) || fullName.startsWith("flowsync-")) {
+                    filtered.add(r);
+                }
+            }
+            return ApiResponse.ok(filtered);
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    /** 授权仓库（添加到可访问列表） */
+    @PostMapping("/github/authorize-repo")
+    public ApiResponse<Void> authorizeRepo(@RequestBody Map<String, String> body,
+                                            HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        String owner = body.get("owner");
+        String repo = body.get("repo");
+        GithubAuthorizedRepo existing = authorizedRepoMapper.selectOne(
+                new QueryWrapper<GithubAuthorizedRepo>().eq("user_id", userId)
+                        .eq("owner", owner).eq("repo_name", repo));
+        if (existing != null) return ApiResponse.ok("已授权", null);
+        GithubAuthorizedRepo ar = new GithubAuthorizedRepo();
+        ar.setUserId(userId);
+        ar.setOwner(owner);
+        ar.setRepoName(repo);
+        ar.setRepoFullName(owner + "/" + repo);
+        authorizedRepoMapper.insert(ar);
+        return ApiResponse.ok("已授权", null);
+    }
+
+    /** 取消授权 */
+    @DeleteMapping("/github/authorize-repo")
+    public ApiResponse<Void> deauthorizeRepo(@RequestBody Map<String, String> body,
+                                              HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        authorizedRepoMapper.delete(new QueryWrapper<GithubAuthorizedRepo>()
+                .eq("user_id", userId).eq("repo_full_name", body.get("fullName")));
+        return ApiResponse.ok("已取消授权", null);
+    }
+
+    /** 获取已授权仓库列表 */
+    @GetMapping("/github/authorized-repos")
+    public ApiResponse<List<GithubAuthorizedRepo>> listAuthorized(HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        return ApiResponse.ok(authorizedRepoMapper.selectList(
+                new QueryWrapper<GithubAuthorizedRepo>().eq("user_id", userId)));
     }
 
     /** 绑定仓库到项目 */
@@ -163,6 +231,13 @@ public class GitHubRepositoryController {
             binding.setRepoUrl((String) ghRepo.get("html_url"));
             binding.setSyncStatus("active");
             repoMapper.insert(binding);
+            // 自动授权
+            GithubAuthorizedRepo ar = new GithubAuthorizedRepo();
+            ar.setUserId(AuthController.getCurrentUserId(req));
+            ar.setOwner(owner);
+            ar.setRepoName(repoName);
+            ar.setRepoFullName(owner + "/" + repoName);
+            authorizedRepoMapper.insert(ar);
             return ApiResponse.ok("仓库已创建并绑定", binding);
         } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
     }

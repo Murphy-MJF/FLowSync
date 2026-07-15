@@ -58,15 +58,19 @@ public class ProjectController {
     public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest request) {
         Long userId = AuthController.getCurrentUserId(request);
         try {
-            // 删除 GitHub 仓库（绑定存在则尝试删除）
-            String token = githubAuthService.getToken(userId);
-            if (token != null) {
-                ProjectGithubRepo binding = repoMapper.selectOne(
-                        new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
-                if (binding != null) {
-                    try { githubApiClient.deleteRepository(token, binding.getOwner(), binding.getRepoName()); }
-                    catch (Exception ignored) {}
-                    repoMapper.deleteById(binding.getId());
+            ProjectInfo project = projectInfoService.listProjects(userId).stream()
+                    .filter(p -> p.getId().equals(id)).findFirst().orElse(null);
+            // 用项目负责人的 GitHub token 删仓库
+            if (project != null) {
+                String token = githubAuthService.getToken(project.getOwnerId());
+                if (token != null) {
+                    ProjectGithubRepo binding = repoMapper.selectOne(
+                            new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
+                    if (binding != null) {
+                        try { githubApiClient.deleteRepository(token, binding.getOwner(), binding.getRepoName()); }
+                        catch (Exception e) { logService.log(userId, "删仓库失败", "项目", id, e.getMessage()); }
+                        repoMapper.deleteById(binding.getId());
+                    }
                 }
             }
             projectInfoService.deleteProject(id, userId);
@@ -82,13 +86,17 @@ public class ProjectController {
     public ApiResponse<Void> archive(@PathVariable Long id, HttpServletRequest request) {
         Long userId = AuthController.getCurrentUserId(request);
         try {
-            String token = githubAuthService.getToken(userId);
-            if (token != null) {
-                ProjectGithubRepo binding = repoMapper.selectOne(
-                        new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
-                if (binding != null) {
-                    githubApiClient.archiveRepository(token, binding.getOwner(), binding.getRepoName());
-                    logService.log(userId, "归档仓库", "项目", id, "归档 GitHub 仓库: " + binding.getRepoName());
+            ProjectInfo project = projectInfoService.listProjects(userId).stream()
+                    .filter(p -> p.getId().equals(id)).findFirst().orElse(null);
+            if (project != null) {
+                String token = githubAuthService.getToken(project.getOwnerId());
+                if (token != null) {
+                    ProjectGithubRepo binding = repoMapper.selectOne(
+                            new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
+                    if (binding != null) {
+                        githubApiClient.archiveRepository(token, binding.getOwner(), binding.getRepoName());
+                        logService.log(userId, "归档仓库", "项目", id, "归档 GitHub 仓库: " + binding.getRepoName());
+                    }
                 }
             }
             return ApiResponse.ok("项目已归档", null);

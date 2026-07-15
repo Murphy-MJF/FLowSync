@@ -88,6 +88,7 @@ export const githubCallback = (code) => api.post('/github/callback', { code })
 export const githubStatus = () => api.get('/github/status')
 export const githubRevoke = () => api.post('/github/revoke')
 export const githubRepositories = () => api.get('/github/repositories')
+export const githubOwnerRepositories = (projectId) => api.get(`/projects/${projectId}/github/repositories`)
 export const githubBindRepo = (projectId, owner, repo) =>
   api.post(`/projects/${projectId}/github/repository`, { owner, repo })
 export const githubUnbindRepo = (projectId) => api.delete(`/projects/${projectId}/github/repository`)
@@ -110,6 +111,9 @@ export const githubCreateRepo = (projectId, data) => api.post(`/projects/${proje
 export const githubPublishTask = (taskId) => api.post(`/tasks/${taskId}/github/publish`)
 export const githubBatchPublish = (data) => api.post('/tasks/batch-publish', data)
 export const archiveProject = (id) => api.post(`/projects/${id}/archive`)
+export const githubAuthorizeRepo = (data) => api.post('/github/authorize-repo', data)
+export const githubDeauthorizeRepo = (data) => api.delete('/github/authorize-repo', { data })
+export const githubAuthorizedRepos = () => api.get('/github/authorized-repos')
 export const fileLockStatus = (params) => api.get('/github/file-lock/status', { params })
 
 // AI 额度

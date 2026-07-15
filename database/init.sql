@@ -16,6 +16,7 @@ USE flowsync_simple;
 -- -----------------------------------------------------
 -- 1. 用户表 sys_user
 -- -----------------------------------------------------
+DROP TABLE IF EXISTS github_authorized_repo;
 DROP TABLE IF EXISTS project_github_repository;
 DROP TABLE IF EXISTS github_account;
 DROP TABLE IF EXISTS ai_quota_request;
@@ -129,7 +130,22 @@ CREATE TABLE operation_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
 -- -----------------------------------------------------
--- 7. GitHub 账号绑定表 github_account
+-- 7. GitHub 授权仓库表 github_authorized_repo
+-- -----------------------------------------------------
+CREATE TABLE github_authorized_repo (
+    id              BIGINT       NOT NULL AUTO_INCREMENT  COMMENT '主键',
+    user_id         BIGINT       NOT NULL                 COMMENT 'FlowSync 用户 ID',
+    owner           VARCHAR(100) NOT NULL                 COMMENT '仓库所有者',
+    repo_name       VARCHAR(100) NOT NULL                 COMMENT '仓库名',
+    repo_full_name  VARCHAR(200) NOT NULL                 COMMENT 'owner/repo',
+    create_time     DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '授权时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_repo (user_id, repo_full_name),
+    CONSTRAINT fk_authrepo_user FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='GitHub 授权仓库表';
+
+-- -----------------------------------------------------
+-- 8. GitHub 账号绑定表 github_account
 -- -----------------------------------------------------
 CREATE TABLE github_account (
     id               BIGINT       NOT NULL AUTO_INCREMENT  COMMENT '主键',

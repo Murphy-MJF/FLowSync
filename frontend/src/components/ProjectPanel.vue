@@ -117,7 +117,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers, githubCreateRepo, githubBindRepo, githubRepositories, githubProjectStatus, archiveProject } from '../api'
+import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers, githubCreateRepo, githubBindRepo, githubOwnerRepositories, githubProjectStatus, archiveProject } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ currentUser: Object })
@@ -176,7 +176,7 @@ async function handleGithubAction(row, cmd) {
     } catch {}
   } else if (cmd === 'bind') {
     try {
-      const reposRes = await githubRepositories()
+      const reposRes = await githubOwnerRepositories(row.id)
       if (reposRes.success && reposRes.data.length) {
         const { value } = await ElMessageBox.prompt('输入 owner/repo（如：leader/my-repo）', '绑定仓库')
         if (value) {
