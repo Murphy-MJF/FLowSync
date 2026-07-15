@@ -149,6 +149,35 @@
       </el-card>
     </template>
 
+    <!-- 新建文件弹窗 -->
+    <el-dialog title="新建文件" v-model="newFileVisible" width="500px">
+      <el-form :model="newFileForm" label-width="80px">
+        <el-form-item label="文件路径">
+          <el-input v-model="newFileForm.path" placeholder="例如：src/utils.js" />
+        </el-form-item>
+        <el-form-item label="文件内容">
+          <el-input v-model="newFileForm.content" type="textarea" :rows="10" placeholder="输入文件内容" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="newFileVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateFile" :loading="createFileSaving">创建并上传</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新建文件夹弹窗 -->
+    <el-dialog title="新建文件夹" v-model="newFolderVisible" width="400px">
+      <el-form :model="newFolderForm" label-width="80px">
+        <el-form-item label="文件夹路径">
+          <el-input v-model="newFolderForm.path" placeholder="例如：src/components" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="newFolderVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateFolder" :loading="createFileSaving">创建</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 绑定仓库弹窗 -->
     <el-dialog title="绑定 GitHub 仓库" v-model="showBindDialog" width="500px">
       <el-table :data="ghRepos" border size="small" max-height="350" v-loading="repoLoading"
@@ -168,6 +197,10 @@
 
     <!-- 文件树 + 源码查看弹窗 -->
     <el-dialog :title="'源码浏览 — ' + selectedBranch" v-model="treeVisible" width="1000px" top="2vh">
+      <div style="margin-bottom:8px;display:flex;gap:6px">
+        <el-button size="small" @click="openNewFileDialog">新建文件</el-button>
+        <el-button size="small" @click="openNewFolderDialog">新建文件夹</el-button>
+      </div>
       <div style="display:flex;height:600px">
         <!-- 文件树 -->
         <div style="width:320px;overflow-x:auto;overflow-y:auto;border-right:1px solid #ebeef5;padding-right:8px;min-width:200px;resize:horizontal">
@@ -254,6 +287,13 @@ const selectedAuthRepo = ref(null)
 const showAuthDialog = ref(false)
 const authSaving = ref(false)
 const repoListLoading = ref(false)
+
+// 新建文件/文件夹
+const newFileVisible = ref(false)
+const newFolderVisible = ref(false)
+const createFileSaving = ref(false)
+const newFileForm = ref({ path: '', content: '' })
+const newFolderForm = ref({ path: '' })
 
 // file tree
 const treeVisible = ref(false)
@@ -596,6 +636,59 @@ async function handleDeauthorize(row) {
     ElMessage.success('已取消授权')
     loadAuthorizedRepos()
   }
+}
+
+// ---- 新建文件/文件夹 ----
+function openNewFileDialog() {
+  newFileForm.value = { path: '', content: '' }
+  newFileVisible.value = true
+}
+
+function openNewFolderDialog() {
+  newFolderForm.value = { path: '' }
+  newFolderVisible.value = true
+}
+
+async function handleCreateFile() {
+  if (!newFileForm.value.path) return
+  createFileSaving.value = true
+  try {
+    const r = repo.value
+    const body = {
+      path: newFileForm.value.path,
+      content: btoa(unescape(encodeURIComponent(newFileForm.value.content))),
+      sha: null,
+      branch: selectedBranch.value,
+      message: '[FlowSync] Create ' + newFileForm.value.path
+    }
+    const res = await githubUploadFile(r.owner, r.repoName, body)
+    if (res.success) {
+      ElMessage.success('文件已创建')
+      newFileVisible.value = false
+      openTreeDialog(selectedBranch.value)
+    }
+  } finally { createFileSaving.value = false }
+}
+
+async function handleCreateFolder() {
+  if (!newFolderForm.value.path) return
+  createFileSaving.value = true
+  try {
+    const r = repo.value
+    const body = {
+      path: newFolderForm.value.path + '/.gitkeep',
+      content: btoa(''),
+      sha: null,
+      branch: selectedBranch.value,
+      message: '[FlowSync] Create folder ' + newFolderForm.value.path
+    }
+    const res = await githubUploadFile(r.owner, r.repoName, body)
+    if (res.success) {
+      ElMessage.success('文件夹已创建')
+      newFolderVisible.value = false
+      openTreeDialog(selectedBranch.value)
+    }
+  } finally { createFileSaving.value = false }
 }
 
 function filterNode(value, data) {

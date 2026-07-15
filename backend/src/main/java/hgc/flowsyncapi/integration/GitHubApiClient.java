@@ -157,6 +157,13 @@ public class GitHubApiClient {
     }
 
     public Map<String, Object> createBranch(String token, String owner, String repo, String branchName) {
+        // Check if branch already exists
+        try {
+            Map<String, Object> existing = callApi(token,
+                    "/repos/" + owner + "/" + repo + "/git/ref/heads/" + branchName);
+            if (existing != null && existing.containsKey("ref")) return existing;
+        } catch (Exception ignored) {}
+
         // Get main branch SHA
         Map<String, Object> mainRef = callApi(token, "/repos/" + owner + "/" + repo + "/git/ref/heads/main");
         if (mainRef == null) mainRef = callApi(token, "/repos/" + owner + "/" + repo + "/git/ref/heads/master");
