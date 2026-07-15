@@ -9,6 +9,58 @@
       </el-select>
     </div>
 
+    <!-- 授权管理 -->
+    <el-card style="margin-bottom:16px">
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>仓库授权管理</span>
+          <el-button size="small" type="primary" @click="openAuthDialog">添加授权</el-button>
+        </div>
+      </template>
+      <el-table :data="authorizedRepos" border size="small" empty-text="暂无授权仓库，点击「添加授权」">
+        <el-table-column prop="repoFullName" label="仓库" />
+        <el-table-column label="属性" width="120">
+          <template #default="{ row }">
+            <el-tag size="small" type="success">可读写</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-popconfirm title="取消授权后该仓库将不可在绑定列表中显示" @confirm="handleDeauthorize(row)">
+              <template #reference>
+                <el-button size="small" type="danger">取消授权</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- 添加授权弹窗 -->
+    <el-dialog title="添加仓库授权" v-model="showAuthDialog" width="600px">
+      <el-table :data="allRepos" border size="small" max-height="350" v-loading="repoListLoading"
+                highlight-current-row @row-click="selectAuthRepo">
+        <el-table-column prop="full_name" label="仓库" />
+        <el-table-column prop="description" label="描述" show-overflow-tooltip />
+        <el-table-column prop="language" label="语言" width="80" />
+        <el-table-column label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="isAuthorized(row.full_name)" size="small" type="success">已授权</el-tag>
+            <el-tag v-else size="small" type="info">未授权</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="selectedAuthRepo" style="margin-top:12px;color:#409EFF">
+        已选择：{{ selectedAuthRepo.full_name }}
+      </div>
+      <template #footer>
+        <el-button @click="showAuthDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleAuthorize" :loading="authSaving" :disabled="!selectedAuthRepo || isAuthorized(selectedAuthRepo.full_name)">
+          确认授权
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 仓库信息 -->
     <el-card v-if="!repo" style="margin-bottom:16px">
       <p style="color:#909399">未绑定 GitHub 仓库。选择一个项目后，可为其绑定仓库。</p>
@@ -179,7 +231,8 @@
 import { ref, onMounted } from 'vue'
 import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
          githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents,
-         fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile } from '../api'
+         fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile,
+         githubAuthorizedRepos, githubAuthorizeRepo, githubDeauthorizeRepo } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addToQueue, removeFromQueue } from '../store/uploadQueue'
 
@@ -193,6 +246,14 @@ const ghRepos = ref([])
 const selectedRepo = ref(null)
 const repoLoading = ref(false)
 const binding = ref(false)
+
+// 授权管理
+const authorizedRepos = ref([])
+const allRepos = ref([])
+const selectedAuthRepo = ref(null)
+const showAuthDialog = ref(false)
+const authSaving = ref(false)
+const repoListLoading = ref(false)
 
 // file tree
 const treeVisible = ref(false)
@@ -212,6 +273,7 @@ const tabLoading = ref(false)
 onMounted(async () => {
   const res = await getProjects()
   if (res.success) projects.value = res.data || []
+  loadAuthorizedRepos()
   // 如果从任务管理跳转过来，自动打开对应分支
   const branchInfo = sessionStorage.getItem('githubOpenBranch')
   if (branchInfo) {
@@ -488,6 +550,52 @@ function cancelUpload() {
   uploadReady.value = false
   uploadQueue.value = null
   diffContent.value = ''
+}
+
+// ---- 授权管理 ----
+async function loadAuthorizedRepos() {
+  const res = await githubAuthorizedRepos()
+  if (res.success) authorizedRepos.value = res.data || []
+}
+
+function isAuthorized(fullName) {
+  return authorizedRepos.value.some(r => r.repoFullName === fullName)
+}
+
+function selectAuthRepo(row) {
+  if (!isAuthorized(row.full_name)) selectedAuthRepo.value = row
+}
+
+async function openAuthDialog() {
+  showAuthDialog.value = true
+  selectedAuthRepo.value = null
+  repoListLoading.value = true
+  try {
+    const res = await githubRepositories()
+    if (res.success) allRepos.value = res.data || []
+  } finally { repoListLoading.value = false }
+}
+
+async function handleAuthorize() {
+  if (!selectedAuthRepo.value) return
+  authSaving.value = true
+  try {
+    const [owner, repo] = selectedAuthRepo.value.full_name.split('/')
+    const res = await githubAuthorizeRepo({ owner, repo })
+    if (res.success) {
+      ElMessage.success('已授权')
+      showAuthDialog.value = false
+      loadAuthorizedRepos()
+    }
+  } finally { authSaving.value = false }
+}
+
+async function handleDeauthorize(row) {
+  const res = await githubDeauthorizeRepo({ fullName: row.repoFullName })
+  if (res.success) {
+    ElMessage.success('已取消授权')
+    loadAuthorizedRepos()
+  }
 }
 
 function filterNode(value, data) {

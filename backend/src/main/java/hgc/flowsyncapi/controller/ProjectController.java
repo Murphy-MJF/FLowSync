@@ -67,8 +67,8 @@ public class ProjectController {
                     ProjectGithubRepo binding = repoMapper.selectOne(
                             new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
                     if (binding != null) {
-                        try { githubApiClient.deleteRepository(token, binding.getOwner(), binding.getRepoName()); }
-                        catch (Exception e) { logService.log(userId, "删仓库失败", "项目", id, e.getMessage()); }
+                        try { githubApiClient.archiveRepository(token, binding.getOwner(), binding.getRepoName()); }
+                        catch (Exception e) { logService.log(userId, "归档仓库失败", "项目", id, e.getMessage()); }
                         repoMapper.deleteById(binding.getId());
                     }
                 }
