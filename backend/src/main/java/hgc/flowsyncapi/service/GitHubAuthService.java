@@ -19,8 +19,7 @@ public class GitHubAuthService {
         this.apiClient = apiClient;
     }
 
-    public String getAuthorizationUrl(String redirectUri) {
-        String state = java.util.UUID.randomUUID().toString().substring(0, 8);
+    public String getAuthorizationUrl(String redirectUri, String state) {
         return apiClient.getAuthorizationUrl(redirectUri, state);
     }
 

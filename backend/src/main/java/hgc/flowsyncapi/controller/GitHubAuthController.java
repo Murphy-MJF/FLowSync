@@ -23,18 +23,21 @@ public class GitHubAuthController {
 
     /** 获取 GitHub 授权链接（前端传入当前页面 origin 作为 redirect_uri） */
     @GetMapping("/connect")
-    public ApiResponse<Map<String, String>> connect(@RequestParam(defaultValue = "http://localhost:8081") String redirect) {
-        String url = authService.getAuthorizationUrl(redirect + "/github-callback");
-        return ApiResponse.ok(Map.of("url", url));
+    public ApiResponse<Map<String, String>> connect(@RequestParam(defaultValue = "http://localhost:8081") String redirect,
+                                                     HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        String state = userId + ":" + java.util.UUID.randomUUID().toString().substring(0, 6);
+        String url = authService.getAuthorizationUrl(redirect + "/github-callback", state);
+        return ApiResponse.ok(Map.of("url", url, "state", state));
     }
 
-    /** OAuth 回调 */
+    /** OAuth 回调（无需 JWT，通过 state 参数识别用户） */
     @PostMapping("/callback")
-    public ApiResponse<Map<String, String>> callback(@RequestBody Map<String, String> body,
-                                                      HttpServletRequest req) {
-        Long userId = AuthController.getCurrentUserId(req);
+    public ApiResponse<Map<String, String>> callback(@RequestBody Map<String, String> body) {
         try {
             String code = body.get("code");
+            String state = body.get("state");
+            Long userId = Long.valueOf(state.split(":")[0]);
             String login = authService.exchangeAndSaveToken(userId, code);
             logService.log(userId, "GitHub授权", "GitHub", null, "绑定账号: " + login);
             return ApiResponse.ok("已连接 GitHub: " + login, Map.of("login", login));

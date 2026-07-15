@@ -88,7 +88,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { updatePassword, updateProfile, githubStatus, githubConnect, githubCallback, githubRevoke } from '../api'
+import { updatePassword, updateProfile, githubStatus, githubConnect, githubRevoke } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ currentUser: Object })
@@ -147,27 +147,34 @@ async function handleGithubConnect() {
   try {
     const res = await githubConnect(window.location.origin)
     if (res.success) {
-      // 弹出 GitHub 授权窗口
       const win = window.open(res.data.url, 'github-oauth', 'width=800,height=700')
+      // 监听回调页面发来的消息（自动模式）
+      const onMessage = (e) => {
+        if (e.data?.type === 'github-connected') {
+          window.removeEventListener('message', onMessage)
+          refreshGithubStatus()
+        }
+      }
+      window.addEventListener('message', onMessage)
+      // 兜底：窗口关闭后轮询检查
       const checkInterval = setInterval(async () => {
         if (win.closed) {
           clearInterval(checkInterval)
-          // 窗口关闭后，提示用户输入 code（简化方案）
-          try {
-            const { value } = await ElMessageBox.prompt('请粘贴 GitHub 返回的授权码（URL中 ?code= 后面的部分）', '输入授权码')
-            if (value) {
-              const cbRes = await githubCallback(value.trim())
-              if (cbRes.success) {
-                ghConnected.value = true
-                ghLogin.value = cbRes.data.login
-                ElMessage.success('GitHub 已连接')
-              }
-            }
-          } catch { /* cancelled */ }
+          window.removeEventListener('message', onMessage)
+          refreshGithubStatus()
         }
-      }, 500)
+      }, 1000)
     }
   } finally { ghLoading.value = false }
+}
+
+async function refreshGithubStatus() {
+  const res = await githubStatus()
+  if (res.success && res.data) {
+    ghConnected.value = res.data.connected
+    ghLogin.value = res.data.login || ''
+    if (ghConnected.value) ElMessage.success('GitHub 已连接')
+  }
 }
 
 async function handleGithubRevoke() {

@@ -84,7 +84,7 @@ export const getTransferCandidates = () => api.get('/admin/transfer-candidates')
 
 // GitHub
 export const githubConnect = (redirect) => api.get('/github/connect', { params: { redirect } })
-export const githubCallback = (code) => api.post('/github/callback', { code })
+export const githubCallback = (code, state) => api.post('/github/callback', { code, state })
 export const githubStatus = () => api.get('/github/status')
 export const githubRevoke = () => api.post('/github/revoke')
 export const githubRepositories = () => api.get('/github/repositories')
