@@ -106,6 +106,9 @@ export const fileLockRelease = (data) => api.post('/github/file-lock/release', d
 export const githubUploadFile = (owner, repo, data) =>
   api.put(`/github/repos/${owner}/${repo}/contents`, data)
 export const githubProjectCommits = (projectId) => api.get(`/projects/${projectId}/github/commits`)
+export const githubCreateRepo = (projectId, data) => api.post(`/projects/${projectId}/github/create-repo`, data)
+export const githubPublishTask = (taskId) => api.post(`/tasks/${taskId}/github/publish`)
+export const githubBatchPublish = (data) => api.post('/tasks/batch-publish', data)
 export const fileLockStatus = (params) => api.get('/github/file-lock/status', { params })
 
 // AI 额度

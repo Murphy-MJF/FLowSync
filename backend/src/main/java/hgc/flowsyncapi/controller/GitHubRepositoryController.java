@@ -23,6 +23,7 @@ public class GitHubRepositoryController {
     private final GithubAccountMapper githubAccountMapper;
     private final UserMapper userMapper;
     private final ProjectInfoService projectInfoService;
+    private final TaskInfoService taskInfoService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     public GitHubRepositoryController(GitHubAuthService authService,
@@ -30,13 +31,15 @@ public class GitHubRepositoryController {
                                        ProjectGithubRepoMapper repoMapper,
                                        GithubAccountMapper githubAccountMapper,
                                        UserMapper userMapper,
-                                       ProjectInfoService projectInfoService) {
+                                       ProjectInfoService projectInfoService,
+                                       TaskInfoService taskInfoService) {
         this.authService = authService;
         this.apiClient = apiClient;
         this.repoMapper = repoMapper;
         this.githubAccountMapper = githubAccountMapper;
         this.userMapper = userMapper;
         this.projectInfoService = projectInfoService;
+        this.taskInfoService = taskInfoService;
     }
 
     private String getToken(HttpServletRequest req) {
@@ -133,6 +136,105 @@ public class GitHubRepositoryController {
     public ApiResponse<Void> unbindRepo(@PathVariable Long projectId) {
         repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
         return ApiResponse.ok("已解绑", null);
+    }
+
+    /** 创建新仓库并绑定到项目 */
+    @PostMapping("/projects/{projectId}/github/create-repo")
+    public ApiResponse<ProjectGithubRepo> createAndBind(@PathVariable Long projectId,
+                                                         @RequestBody Map<String, String> body,
+                                                         HttpServletRequest req) {
+        try {
+            String token = getToken(req);
+            String name = body.getOrDefault("name", "flowsync-project-" + projectId);
+            String desc = body.getOrDefault("description", "Created by FlowSync");
+            boolean isPrivate = Boolean.parseBoolean(body.getOrDefault("private", "false"));
+
+            Map<String, Object> ghRepo = apiClient.createRepository(token, name, desc, isPrivate);
+            String owner = (String) ((Map<String, Object>) ghRepo.get("owner")).get("login");
+            String repoName = (String) ghRepo.get("name");
+
+            repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+            ProjectGithubRepo binding = new ProjectGithubRepo();
+            binding.setProjectId(projectId);
+            binding.setRepoId(Long.valueOf(ghRepo.get("id").toString()));
+            binding.setOwner(owner);
+            binding.setRepoName(repoName);
+            binding.setDefaultBranch((String) ghRepo.getOrDefault("default_branch", "main"));
+            binding.setRepoUrl((String) ghRepo.get("html_url"));
+            binding.setSyncStatus("active");
+            repoMapper.insert(binding);
+            return ApiResponse.ok("仓库已创建并绑定", binding);
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    /** 为任务创建 GitHub Issue + 分支 */
+    @PostMapping("/tasks/{taskId}/github/publish")
+    public ApiResponse<Map<String, Object>> publishTask(@PathVariable Long taskId,
+                                                         HttpServletRequest req) {
+        Long userId = AuthController.getCurrentUserId(req);
+        try {
+            String token = getToken(req);
+            TaskInfo task = taskInfoService.getById(taskId);
+            if (task == null) return ApiResponse.fail("任务不存在");
+
+            ProjectGithubRepo binding = repoMapper.selectOne(
+                    new QueryWrapper<ProjectGithubRepo>().eq("project_id", task.getProjectId()));
+            if (binding == null) return ApiResponse.fail("该项目未绑定仓库");
+
+            String owner = binding.getOwner();
+            String repo = binding.getRepoName();
+            String branchName = "task/" + taskId + "-" + slugify(task.getTitle());
+            String issueBody = "## 任务说明\n" + (task.getDescription() != null ? task.getDescription() : "") +
+                    "\n\n## 验收标准\n- [ ] 功能实现\n- [ ] 代码通过测试\n\n---\n*Created by FlowSync*";
+
+            Map<String, Object> issue = apiClient.createIssue(token, owner, repo,
+                    task.getTitle(), issueBody);
+            Map<String, Object> branch = apiClient.createBranch(token, owner, repo, branchName);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("issueNumber", issue.get("number"));
+            result.put("issueUrl", issue.get("html_url"));
+            result.put("branchName", branchName);
+            result.put("taskId", taskId);
+            return ApiResponse.ok("已发布 Issue #" + issue.get("number") + " + 分支 " + branchName, result);
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    /** 批量发布任务（AI 拆解导入后调用） */
+    @PostMapping("/tasks/batch-publish")
+    public ApiResponse<Map<String, Object>> batchPublish(@RequestBody Map<String, Object> body,
+                                                          HttpServletRequest req) {
+        try {
+            String token = getToken(req);
+            List<Integer> taskIds = (List<Integer>) body.get("taskIds");
+            ProjectGithubRepo binding = repoMapper.selectOne(
+                    new QueryWrapper<ProjectGithubRepo>().eq("project_id",
+                            Integer.valueOf(body.get("projectId").toString()).longValue()));
+            if (binding == null) return ApiResponse.fail("该项目未绑定仓库");
+
+            String owner = binding.getOwner();
+            String repo = binding.getRepoName();
+            int count = 0;
+            for (Integer id : taskIds) {
+                TaskInfo task = taskInfoService.getById(id.longValue());
+                if (task == null) continue;
+                String branchName = "task/" + id + "-" + slugify(task.getTitle());
+                try {
+                    apiClient.createIssue(token, owner, repo, task.getTitle(),
+                            task.getDescription() != null ? task.getDescription() : "");
+                    apiClient.createBranch(token, owner, repo, branchName);
+                    count++;
+                } catch (Exception ignored) {}
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("published", count);
+            return ApiResponse.ok("已发布 " + count + " 个任务", result);
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
+    private String slugify(String text) {
+        return text.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fa5]", "-")
+                .replaceAll("-+", "-").replaceAll("^-|-$", "").toLowerCase();
     }
 
     /** 项目提交历史（含 FlowSync 用户映射 + 数据隔离） */

@@ -26,6 +26,25 @@
       <el-table-column prop="ownerName" label="负责人" width="100" />
       <el-table-column prop="startDate" label="开始" width="110" />
       <el-table-column prop="endDate" label="结束" width="110" />
+      <el-table-column label="GitHub" width="130">
+        <template #default="{ row }">
+          <template v-if="repoStatus[row.id]">
+            <el-tag size="small" type="success">{{ repoStatus[row.id].repoName }}</el-tag>
+          </template>
+          <template v-else>
+            <el-dropdown v-if="isLeader || isAdmin" @command="(cmd) => handleGithubAction(row, cmd)">
+              <el-button size="small">仓库 ▾</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="create">新建仓库</el-dropdown-item>
+                  <el-dropdown-item command="bind">绑定已有</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <span v-else style="color:#c0c4cc">—</span>
+          </template>
+        </template>
+      </el-table-column>
       <el-table-column v-if="isLeader || isAdmin" label="操作" width="220">
         <template #default="{ row }">
           <el-button size="small" @click="openDialog(row)">编辑</el-button>
@@ -97,7 +116,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers } from '../api'
+import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers, githubCreateRepo, githubBindRepo, githubRepositories, githubProjectStatus } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ currentUser: Object })
@@ -113,6 +132,7 @@ const ownerDialogVisible = ref(false)
 const ownerSaving = ref(false)
 const ownerForm = ref({})
 const ownerCandidates = ref([])
+const repoStatus = ref({})  // projectId -> { repoName, ... }
 const form = ref({})
 const statuses = ['未开始', '进行中', '已完成']
 const priorities = ['低', '中', '高']
@@ -123,9 +143,51 @@ async function fetchProjects() {
   loading.value = true
   try {
     const res = await getProjects()
-    if (res.success) projects.value = res.data || []
-  } finally {
-    loading.value = false
+    if (res.success) {
+      projects.value = res.data || []
+      loadRepoStatuses()
+    }
+  } finally { loading.value = false }
+}
+
+async function loadRepoStatuses() {
+  for (const p of projects.value) {
+    try {
+      const r = await githubProjectStatus(p.id)
+      if (r.success && r.data) repoStatus.value[p.id] = r.data
+    } catch {}
+  }
+}
+
+async function handleGithubAction(row, cmd) {
+  if (cmd === 'create') {
+    try {
+      const { value } = await ElMessageBox.prompt('仓库名称', '新建 GitHub 仓库', {
+        inputValue: row.name.toLowerCase().replace(/\s+/g, '-')
+      })
+      if (value) {
+        const res = await githubCreateRepo(row.id, { name: value, description: row.description || '', private: false })
+        if (res.success) {
+          ElMessage.success('仓库已创建并绑定')
+          repoStatus.value[row.id] = res.data
+        }
+      }
+    } catch {}
+  } else if (cmd === 'bind') {
+    try {
+      const reposRes = await githubRepositories()
+      if (reposRes.success && reposRes.data.length) {
+        const { value } = await ElMessageBox.prompt('输入 owner/repo（如：leader/my-repo）', '绑定仓库')
+        if (value) {
+          const [owner, repo] = value.split('/')
+          const res = await githubBindRepo(row.id, owner, repo)
+          if (res.success) {
+            ElMessage.success('已绑定')
+            repoStatus.value[row.id] = { owner, repoName: repo }
+          }
+        }
+      }
+    } catch {}
   }
 }
 

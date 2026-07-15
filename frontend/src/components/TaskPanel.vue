@@ -35,6 +35,7 @@
         <template #default="{ row }">
           <el-button v-if="isLeader || isAdmin" size="small" @click="openDialog(row)">编辑</el-button>
           <el-button v-if="isAdmin || isProjectOwner(row)" size="small" type="primary" @click="openAssignDialog(row)">改负责人</el-button>
+          <el-button v-if="isAdmin || isProjectOwner(row)" size="small" type="success" @click="handlePublishTask(row)">发布到GitHub</el-button>
           <el-button v-if="canUpdateStatus(row)" size="small" type="warning" @click="openStatusDialog(row)">更新状态</el-button>
           <el-popconfirm v-if="isLeader || isAdmin" title="确认删除？" @confirm="handleDelete(row.id)">
             <template #reference>
@@ -131,7 +132,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getTasks, saveTask, updateTaskStatus, deleteTask, batchDeleteTasks, getProjects, getUsers } from '../api'
+import { getTasks, saveTask, updateTaskStatus, deleteTask, batchDeleteTasks, getProjects, getUsers, githubPublishTask } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ currentUser: Object })
@@ -258,6 +259,15 @@ async function handleAssignSave() {
       }
     }
   } finally { assignSaving.value = false }
+}
+
+async function handlePublishTask(row) {
+  try {
+    const res = await githubPublishTask(row.id)
+    if (res.success) {
+      ElMessage.success(`已发布：Issue #${res.data.issueNumber} + 分支 ${res.data.branchName}`)
+    }
+  } catch {}
 }
 
 async function handleDelete(id) {

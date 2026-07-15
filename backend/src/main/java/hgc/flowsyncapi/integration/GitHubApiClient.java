@@ -127,6 +127,53 @@ public class GitHubApiClient {
         return resp.getBody() != null ? resp.getBody() : List.of();
     }
 
+    // ---- Write Operations ----
+
+    public Map<String, Object> createRepository(String token, String name, String description, boolean isPrivate) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", name);
+        body.put("description", description);
+        body.put("private", isPrivate);
+        body.put("auto_init", true);
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> resp = rest.exchange(GITHUB_API + "/user/repos", HttpMethod.POST, req, Map.class);
+        return resp.getBody();
+    }
+
+    public Map<String, Object> createIssue(String token, String owner, String repo, String title, String body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> reqBody = new LinkedHashMap<>();
+        reqBody.put("title", title);
+        reqBody.put("body", body);
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(reqBody, headers);
+        ResponseEntity<Map> resp = rest.exchange(
+                GITHUB_API + "/repos/" + owner + "/" + repo + "/issues", HttpMethod.POST, req, Map.class);
+        return resp.getBody();
+    }
+
+    public Map<String, Object> createBranch(String token, String owner, String repo, String branchName) {
+        // Get main branch SHA
+        Map<String, Object> mainRef = callApi(token, "/repos/" + owner + "/" + repo + "/git/ref/heads/main");
+        if (mainRef == null) mainRef = callApi(token, "/repos/" + owner + "/" + repo + "/git/ref/heads/master");
+        String sha = (String) ((Map<String, Object>) mainRef.get("object")).get("sha");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> reqBody = new LinkedHashMap<>();
+        reqBody.put("ref", "refs/heads/" + branchName);
+        reqBody.put("sha", sha);
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(reqBody, headers);
+        ResponseEntity<Map> resp = rest.exchange(
+                GITHUB_API + "/repos/" + owner + "/" + repo + "/git/refs", HttpMethod.POST, req, Map.class);
+        return resp.getBody();
+    }
+
     // ---- Tree & Contents ----
 
     public Map<String, Object> getTree(String token, String owner, String repo, String branch) {
