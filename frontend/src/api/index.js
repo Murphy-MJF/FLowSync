@@ -109,6 +109,7 @@ export const githubProjectCommits = (projectId) => api.get(`/projects/${projectI
 export const githubCreateRepo = (projectId, data) => api.post(`/projects/${projectId}/github/create-repo`, data)
 export const githubPublishTask = (taskId) => api.post(`/tasks/${taskId}/github/publish`)
 export const githubBatchPublish = (data) => api.post('/tasks/batch-publish', data)
+export const archiveProject = (id) => api.post(`/projects/${id}/archive`)
 export const fileLockStatus = (params) => api.get('/github/file-lock/status', { params })
 
 // AI 额度

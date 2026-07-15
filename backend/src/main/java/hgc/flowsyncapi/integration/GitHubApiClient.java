@@ -174,6 +174,50 @@ public class GitHubApiClient {
         return resp.getBody();
     }
 
+    // ---- Delete / Archive ----
+
+    public void deleteBranch(String token, String owner, String repo, String branchName) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        HttpEntity<Void> req = new HttpEntity<>(headers);
+        rest.exchange(GITHUB_API + "/repos/" + owner + "/" + repo + "/git/refs/heads/" + branchName,
+                HttpMethod.DELETE, req, Void.class);
+    }
+
+    public Map<String, Object> closeIssue(String token, String owner, String repo, int issueNumber) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("state", "closed");
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> resp = rest.exchange(
+                GITHUB_API + "/repos/" + owner + "/" + repo + "/issues/" + issueNumber,
+                HttpMethod.PATCH, req, Map.class);
+        return resp.getBody();
+    }
+
+    public Map<String, Object> archiveRepository(String token, String owner, String repo) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("archived", true);
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> resp = rest.exchange(
+                GITHUB_API + "/repos/" + owner + "/" + repo,
+                HttpMethod.PATCH, req, Map.class);
+        return resp.getBody();
+    }
+
+    public void deleteRepository(String token, String owner, String repo) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        HttpEntity<Void> req = new HttpEntity<>(headers);
+        rest.exchange(GITHUB_API + "/repos/" + owner + "/" + repo,
+                HttpMethod.DELETE, req, Void.class);
+    }
+
     // ---- Tree & Contents ----
 
     public Map<String, Object> getTree(String token, String owner, String repo, String branch) {

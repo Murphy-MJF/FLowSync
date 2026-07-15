@@ -29,7 +29,8 @@
       <el-table-column label="GitHub" width="130">
         <template #default="{ row }">
           <template v-if="repoStatus[row.id]">
-            <el-tag size="small" type="success">{{ repoStatus[row.id].repoName }}</el-tag>
+            <el-tag size="small" type="success" style="margin-right:4px">{{ repoStatus[row.id].repoName }}</el-tag>
+            <el-button v-if="row.status === '已完成'" size="small" @click="handleArchive(row)">归档</el-button>
           </template>
           <template v-else>
             <el-dropdown v-if="isLeader || isAdmin" @command="(cmd) => handleGithubAction(row, cmd)">
@@ -116,7 +117,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers, githubCreateRepo, githubBindRepo, githubRepositories, githubProjectStatus } from '../api'
+import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers, githubCreateRepo, githubBindRepo, githubRepositories, githubProjectStatus, archiveProject } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ currentUser: Object })
@@ -248,6 +249,16 @@ async function handleOwnerSave() {
       }
     }
   } finally { ownerSaving.value = false }
+}
+
+async function handleArchive(row) {
+  try {
+    await ElMessageBox.confirm('归档后仓库变为只读，确认归档？', '归档仓库', { type: 'warning' })
+  } catch { return }
+  const res = await archiveProject(row.id)
+  if (res.success) {
+    ElMessage.success('仓库已归档')
+  }
 }
 
 async function handleDelete(id) {

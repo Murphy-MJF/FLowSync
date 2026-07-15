@@ -112,8 +112,8 @@
           <span>成员管理</span>
         </el-menu-item>
 
-        <!-- GitHub -->
-        <el-menu-item index="github">
+        <!-- GitHub（仅负责人和管理员可见） -->
+        <el-menu-item v-if="isLeader || isAdmin" index="github">
           <el-icon><Connection /></el-icon>
           <span>GitHub 仓库</span>
         </el-menu-item>
@@ -220,6 +220,11 @@ onMounted(() => {
   if (stored && token) {
     currentUser.value = JSON.parse(stored)
   }
+  // 监听任务代码跳转事件
+  window.addEventListener('nav-github-branch', (e) => {
+    sessionStorage.setItem('githubOpenBranch', JSON.stringify(e.detail))
+    activeMenu.value = 'github'
+  })
 })
 
 function switchToRegister() {

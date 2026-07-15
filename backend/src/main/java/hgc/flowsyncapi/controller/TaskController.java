@@ -1,10 +1,11 @@
 package hgc.flowsyncapi.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import hgc.flowsyncapi.common.ApiResponse;
-import hgc.flowsyncapi.entity.TaskInfo;
-import hgc.flowsyncapi.service.OperationLogService;
-import hgc.flowsyncapi.service.ProjectInfoService;
-import hgc.flowsyncapi.service.TaskInfoService;
+import hgc.flowsyncapi.entity.*;
+import hgc.flowsyncapi.integration.GitHubApiClient;
+import hgc.flowsyncapi.mapper.ProjectGithubRepoMapper;
+import hgc.flowsyncapi.service.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,13 +19,22 @@ public class TaskController {
     private final TaskInfoService taskInfoService;
     private final ProjectInfoService projectInfoService;
     private final OperationLogService logService;
+    private final ProjectGithubRepoMapper repoMapper;
+    private final GitHubAuthService githubAuthService;
+    private final GitHubApiClient githubApiClient;
 
     public TaskController(TaskInfoService taskInfoService,
                           ProjectInfoService projectInfoService,
-                          OperationLogService logService) {
+                          OperationLogService logService,
+                          ProjectGithubRepoMapper repoMapper,
+                          GitHubAuthService githubAuthService,
+                          GitHubApiClient githubApiClient) {
         this.taskInfoService = taskInfoService;
         this.projectInfoService = projectInfoService;
         this.logService = logService;
+        this.repoMapper = repoMapper;
+        this.githubAuthService = githubAuthService;
+        this.githubApiClient = githubApiClient;
     }
 
     @GetMapping
@@ -75,9 +85,26 @@ public class TaskController {
         String role = (String) request.getAttribute("currentUserRole");
         if (!"管理员".equals(role) && !projectInfoService.isProjectOwner(task.getProjectId(), userId))
             return ApiResponse.fail("无权操作：只有项目负责人可以删除任务");
+
+        // 删除 GitHub 分支
+        String token = githubAuthService.getToken(userId);
+        if (token != null) {
+            ProjectGithubRepo binding = repoMapper.selectOne(
+                    new QueryWrapper<ProjectGithubRepo>().eq("project_id", task.getProjectId()));
+            if (binding != null) {
+                String branchName = "task/" + id + "-" + slugify(task.getTitle());
+                try { githubApiClient.deleteBranch(token, binding.getOwner(), binding.getRepoName(), branchName); }
+                catch (Exception ignored) {}
+            }
+        }
         taskInfoService.deleteTask(id);
         logService.log(userId, "删除任务", "任务", id, "删除任务：" + task.getTitle());
         return ApiResponse.ok(null);
+    }
+
+    private String slugify(String text) {
+        return text.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fa5]", "-")
+                .replaceAll("-+", "-").replaceAll("^-|-$", "").toLowerCase();
     }
 
     @PostMapping("/batch-delete")

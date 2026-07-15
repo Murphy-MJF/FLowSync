@@ -212,6 +212,22 @@ const tabLoading = ref(false)
 onMounted(async () => {
   const res = await getProjects()
   if (res.success) projects.value = res.data || []
+  // 如果从任务管理跳转过来，自动打开对应分支
+  const branchInfo = sessionStorage.getItem('githubOpenBranch')
+  if (branchInfo) {
+    sessionStorage.removeItem('githubOpenBranch')
+    try {
+      const info = JSON.parse(branchInfo)
+      selectedProjectId.value = info.projectId
+      // 等待仓库信息加载
+      setTimeout(async () => {
+        await loadRepo()
+        if (repo.value) {
+          openTreeDialog(info.branchName || 'main')
+        }
+      }, 500)
+    } catch {}
+  }
 })
 
 async function loadRepo() {

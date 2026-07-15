@@ -1,9 +1,11 @@
 package hgc.flowsyncapi.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import hgc.flowsyncapi.common.ApiResponse;
-import hgc.flowsyncapi.entity.ProjectInfo;
-import hgc.flowsyncapi.service.OperationLogService;
-import hgc.flowsyncapi.service.ProjectInfoService;
+import hgc.flowsyncapi.entity.*;
+import hgc.flowsyncapi.integration.GitHubApiClient;
+import hgc.flowsyncapi.mapper.ProjectGithubRepoMapper;
+import hgc.flowsyncapi.service.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,10 +18,20 @@ public class ProjectController {
 
     private final ProjectInfoService projectInfoService;
     private final OperationLogService logService;
+    private final ProjectGithubRepoMapper repoMapper;
+    private final GitHubAuthService githubAuthService;
+    private final GitHubApiClient githubApiClient;
 
-    public ProjectController(ProjectInfoService projectInfoService, OperationLogService logService) {
+    public ProjectController(ProjectInfoService projectInfoService,
+                              OperationLogService logService,
+                              ProjectGithubRepoMapper repoMapper,
+                              GitHubAuthService githubAuthService,
+                              GitHubApiClient githubApiClient) {
         this.projectInfoService = projectInfoService;
         this.logService = logService;
+        this.repoMapper = repoMapper;
+        this.githubAuthService = githubAuthService;
+        this.githubApiClient = githubApiClient;
     }
 
     @GetMapping
@@ -46,9 +58,40 @@ public class ProjectController {
     public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest request) {
         Long userId = AuthController.getCurrentUserId(request);
         try {
+            // 删除 GitHub 仓库（绑定存在则尝试删除）
+            String token = githubAuthService.getToken(userId);
+            if (token != null) {
+                ProjectGithubRepo binding = repoMapper.selectOne(
+                        new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
+                if (binding != null) {
+                    try { githubApiClient.deleteRepository(token, binding.getOwner(), binding.getRepoName()); }
+                    catch (Exception ignored) {}
+                    repoMapper.deleteById(binding.getId());
+                }
+            }
             projectInfoService.deleteProject(id, userId);
-            logService.log(userId, "删除项目", "项目", id, "删除项目 ID=" + id);
+            logService.log(userId, "删除项目", "项目", id, "删除项目（含GitHub仓库）");
             return ApiResponse.ok(null);
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage());
+        }
+    }
+
+    /** 归档项目（项目完成时调用） */
+    @PostMapping("/{id}/archive")
+    public ApiResponse<Void> archive(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = AuthController.getCurrentUserId(request);
+        try {
+            String token = githubAuthService.getToken(userId);
+            if (token != null) {
+                ProjectGithubRepo binding = repoMapper.selectOne(
+                        new QueryWrapper<ProjectGithubRepo>().eq("project_id", id));
+                if (binding != null) {
+                    githubApiClient.archiveRepository(token, binding.getOwner(), binding.getRepoName());
+                    logService.log(userId, "归档仓库", "项目", id, "归档 GitHub 仓库: " + binding.getRepoName());
+                }
+            }
+            return ApiResponse.ok("项目已归档", null);
         } catch (RuntimeException e) {
             return ApiResponse.fail(e.getMessage());
         }
