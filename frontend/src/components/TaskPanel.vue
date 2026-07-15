@@ -148,7 +148,8 @@ const users = ref([])
 const loading = ref(false)
 const batchDeleting = ref(false)
 const selectedIds = ref([])
-const published = reactive({})
+// 使用 sessionStorage 持久化已发布状态，切换页面不丢失
+const published = reactive(JSON.parse(sessionStorage.getItem('publishedTasks') || '{}'))
 const filterProjectId = ref(null)
 const dialogVisible = ref(false)
 const statusDialogVisible = ref(false)
@@ -270,6 +271,7 @@ async function handlePublishTask(row) {
     const res = await githubPublishTask(row.id)
     if (res.success) {
       published[row.id] = true
+      sessionStorage.setItem('publishedTasks', JSON.stringify(published))
       row._branchName = res.data.branchName
       ElMessage.success(`已发布：Issue #${res.data.issueNumber} + 分支 ${res.data.branchName}`)
     }

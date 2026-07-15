@@ -185,28 +185,22 @@ public class GitHubApiClient {
     }
 
     public Map<String, Object> closeIssue(String token, String owner, String repo, int issueNumber) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(token);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("state", "closed");
-        HttpEntity<Map<String, Object>> req = new HttpEntity<>(body, headers);
-        ResponseEntity<Map> resp = rest.exchange(
-                GITHUB_API + "/repos/" + owner + "/" + repo + "/issues/" + issueNumber,
-                HttpMethod.PATCH, req, Map.class);
-        return resp.getBody();
+        return patchViaPost(token, GITHUB_API + "/repos/" + owner + "/" + repo + "/issues/" + issueNumber,
+                Map.of("state", "closed"));
     }
 
     public Map<String, Object> archiveRepository(String token, String owner, String repo) {
+        return patchViaPost(token, GITHUB_API + "/repos/" + owner + "/" + repo, Map.of("archived", true));
+    }
+
+    /** GitHub 兼容：用 POST + X-HTTP-Method-Override 模拟 PATCH（JDK HttpURLConnection 不支持 PATCH） */
+    private Map<String, Object> patchViaPost(String token, String url, Map<String, Object> body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("archived", true);
+        headers.set("X-HTTP-Method-Override", "PATCH");
         HttpEntity<Map<String, Object>> req = new HttpEntity<>(body, headers);
-        ResponseEntity<Map> resp = rest.exchange(
-                GITHUB_API + "/repos/" + owner + "/" + repo,
-                HttpMethod.PATCH, req, Map.class);
+        ResponseEntity<Map> resp = rest.exchange(url, HttpMethod.POST, req, Map.class);
         return resp.getBody();
     }
 

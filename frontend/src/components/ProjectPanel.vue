@@ -29,8 +29,9 @@
       <el-table-column label="GitHub" width="130">
         <template #default="{ row }">
           <template v-if="repoStatus[row.id]">
-            <el-tag size="small" type="success" style="margin-right:4px">{{ repoStatus[row.id].repoName }}</el-tag>
-            <el-button v-if="row.status === '已完成'" size="small" @click="handleArchive(row)">归档</el-button>
+            <el-tag size="small" :type="archived[row.id] ? 'info' : 'success'" style="margin-right:4px">{{ repoStatus[row.id].repoName }}</el-tag>
+            <el-button v-if="row.status === '已完成' && !archived[row.id]" size="small" @click="handleArchive(row)">归档</el-button>
+            <el-tag v-if="archived[row.id]" size="small" type="info">已归档</el-tag>
           </template>
           <template v-else>
             <el-dropdown v-if="isLeader || isAdmin" @command="(cmd) => handleGithubAction(row, cmd)">
@@ -50,7 +51,7 @@
         <template #default="{ row }">
           <el-button size="small" @click="openDialog(row)">编辑</el-button>
           <el-button v-if="isAdmin" size="small" type="primary" @click="openOwnerDialog(row)">改负责人</el-button>
-          <el-popconfirm title="确认删除此项目？" @confirm="handleDelete(row.id)">
+          <el-popconfirm v-if="isAdmin || row.status !== '已完成'" title="确认删除此项目？" @confirm="handleDelete(row.id)">
             <template #reference>
               <el-button size="small" type="danger">删除</el-button>
             </template>
@@ -116,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { getProjects, saveProject, deleteProject, batchDeleteProjects, getUsers, githubCreateRepo, githubBindRepo, githubOwnerRepositories, githubProjectStatus, archiveProject } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -133,7 +134,8 @@ const ownerDialogVisible = ref(false)
 const ownerSaving = ref(false)
 const ownerForm = ref({})
 const ownerCandidates = ref([])
-const repoStatus = ref({})  // projectId -> { repoName, ... }
+const repoStatus = ref({})
+const archived = reactive({})
 const form = ref({})
 const statuses = ['未开始', '进行中', '已完成']
 const priorities = ['低', '中', '高']
@@ -257,6 +259,7 @@ async function handleArchive(row) {
   } catch { return }
   const res = await archiveProject(row.id)
   if (res.success) {
+    archived[row.id] = true
     ElMessage.success('仓库已归档')
   }
 }
