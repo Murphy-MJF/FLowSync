@@ -165,6 +165,21 @@ public class GitHubRepositoryController {
         return binding != null ? ApiResponse.ok(binding) : ApiResponse.fail("未绑定仓库");
     }
 
+    /** 删除文件 */
+    @DeleteMapping("/github/repos/{owner}/{repo}/contents")
+    public ApiResponse<Void> deleteFile(@PathVariable String owner,
+                                         @PathVariable String repo,
+                                         @RequestParam String path,
+                                         @RequestParam String sha,
+                                         @RequestParam(defaultValue = "main") String branch,
+                                         @RequestParam(defaultValue = "[FlowSync] Delete") String message,
+                                         HttpServletRequest req) {
+        try {
+            apiClient.deleteFile(getToken(req), owner, repo, path, sha, branch, message);
+            return ApiResponse.ok("已删除", null);
+        } catch (RuntimeException e) { return ApiResponse.fail(e.getMessage()); }
+    }
+
     /** 上传/更新文件到仓库 */
     @PutMapping("/github/repos/{owner}/{repo}/contents")
     public ApiResponse<Map<String, Object>> uploadFile(@PathVariable String owner,

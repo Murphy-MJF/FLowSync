@@ -209,15 +209,19 @@
 
     <!-- 文件树 + 源码查看弹窗 -->
     <el-dialog :title="'源码浏览 — ' + selectedBranch" v-model="treeVisible" width="1000px" top="2vh">
-      <div style="margin-bottom:8px;display:flex;gap:6px">
+      <div style="margin-bottom:8px;display:flex;gap:6px;align-items:center">
         <el-button size="small" @click="openNewFileDialog">新建文件</el-button>
         <el-button size="small" @click="openNewFolderDialog">新建文件夹</el-button>
+        <el-button v-if="checkedKeys.length > 0" size="small" type="danger" @click="handleBatchDelete" :loading="deleteSaving">
+          删除选中（{{ checkedKeys.length }}）
+        </el-button>
       </div>
       <div style="display:flex;height:600px">
         <!-- 文件树 -->
         <div style="width:320px;overflow-x:auto;overflow-y:auto;border-right:1px solid #ebeef5;padding-right:8px;min-width:200px;resize:horizontal">
           <el-tree :data="fileTree" :props="{ label: 'name', children: 'children' }"
                    @node-click="handleFileClick" highlight-current node-key="path"
+                   show-checkbox @check="handleTreeCheck"
                    :filter-node-method="filterNode" style="font-size:13px;white-space:nowrap" default-expand-all />
         </div>
         <!-- 源码 -->
@@ -276,7 +280,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
          githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents,
-         fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile,
+         fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile, githubDeleteFile,
          githubAuthorizedRepos, githubAuthorizeRepo, githubDeauthorizeRepo } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addToQueue, removeFromQueue } from '../store/uploadQueue'
@@ -312,6 +316,8 @@ const newFolderForm = ref({ name: '' })
 const treeVisible = ref(false)
 const selectedBranch = ref('')
 const fileTree = ref([])
+const checkedKeys = ref([])
+const deleteSaving = ref(false)
 const selectedFile = ref(null)
 const isEditing = ref(false)
 const editContent = ref('')
@@ -733,6 +739,41 @@ async function handleCreateFolder() {
       openTreeDialog(branch)
     }
   } finally { createFileSaving.value = false }
+}
+
+// ---- 批量删除 ----
+function handleTreeCheck(node, data) {
+  checkedKeys.value = data.checkedKeys
+}
+
+async function handleBatchDelete() {
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${checkedKeys.value.length} 个文件/文件夹？此操作不可恢复。`, '批量删除', { type: 'warning' })
+  } catch { return }
+  deleteSaving.value = true
+  const r = repo.value
+  let deleted = 0
+  try {
+    for (const key of checkedKeys.value) {
+      if (!key) continue
+      try {
+        // Get file SHA first
+        const cRes = await githubContents(r.owner, r.repoName, key, selectedBranch.value)
+        if (cRes.success && cRes.data.sha) {
+          await githubDeleteFile(r.owner, r.repoName, {
+            path: key, sha: cRes.data.sha, branch: selectedBranch.value,
+            message: '[FlowSync] Delete ' + key
+          })
+          deleted++
+        }
+      } catch {}
+    }
+    if (deleted > 0) {
+      ElMessage.success(`已删除 ${deleted} 个文件`)
+      checkedKeys.value = []
+      openTreeDialog(selectedBranch.value)
+    }
+  } finally { deleteSaving.value = false }
 }
 
 function filterNode(value, data) {

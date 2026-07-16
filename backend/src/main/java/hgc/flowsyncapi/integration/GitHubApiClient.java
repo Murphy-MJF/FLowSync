@@ -181,6 +181,21 @@ public class GitHubApiClient {
         return resp.getBody();
     }
 
+    public Map<String, Object> deleteFile(String token, String owner, String repo, String path, String sha, String branch, String message) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", message);
+        body.put("sha", sha);
+        body.put("branch", branch);
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> resp = rest.exchange(
+                GITHUB_API + "/repos/" + owner + "/" + repo + "/contents/" + path,
+                HttpMethod.DELETE, req, Map.class);
+        return resp.getBody();
+    }
+
     // ---- Delete / Archive ----
 
     public void deleteBranch(String token, String owner, String repo, String branchName) {

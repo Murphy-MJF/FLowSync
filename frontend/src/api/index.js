@@ -102,6 +102,8 @@ export const githubTree = (owner, repo, branch) =>
   api.get(`/github/repos/${owner}/${repo}/tree`, { params: { branch } })
 export const githubContents = (owner, repo, path, branch) =>
   api.get(`/github/repos/${owner}/${repo}/contents`, { params: { path, branch } })
+export const githubDeleteFile = (owner, repo, params) =>
+  api.delete(`/github/repos/${owner}/${repo}/contents`, { params })
 export const fileLockAcquire = (data) => api.post('/github/file-lock/acquire', data)
 export const fileLockRelease = (data) => api.post('/github/file-lock/release', data)
 export const githubUploadFile = (owner, repo, data) =>
