@@ -22,3 +22,6 @@ package-lock.json
 # 系统文件
 Thumbs.db
 *.log
+
+#构建学习
+learn/
