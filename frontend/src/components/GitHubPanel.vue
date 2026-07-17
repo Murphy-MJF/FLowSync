@@ -463,25 +463,27 @@ async function openTreeDialog(branch) {
   selectedBranch.value = branch
   selectedFile.value = null
   treeVisible.value = true
+  fileTree.value = []
   try {
-    const res = await githubTree(repo.value.owner, repo.value.repoName, branch)
+    // 先验证分支是否存在
+    const branchesRes = await githubBranches(repo.value.owner, repo.value.repoName)
+    const exists = branchesRes.success && (branchesRes.data || []).some(b => b.name === branch)
+
+    const targetBranch = exists ? branch : (repo.value.defaultBranch || 'main')
+    if (!exists && branch !== targetBranch) {
+      ElMessage.warning('分支 ' + branch + ' 不存在，已切换到 ' + targetBranch)
+      selectedBranch.value = targetBranch
+    }
+
+    const res = await githubTree(repo.value.owner, repo.value.repoName, targetBranch)
     if (res.success) {
       fileTree.value = buildTree(res.data)
       currentBrowsePath.value = ''
       return
     }
   } catch {}
-  // 分支不存在 → 降级到默认分支
-  try {
-    const def = repo.value.defaultBranch || 'main'
-    const r2 = await githubTree(repo.value.owner, repo.value.repoName, def)
-    if (r2.success) {
-      selectedBranch.value = def
-      fileTree.value = buildTree(r2.data)
-      currentBrowsePath.value = ''
-      ElMessage.warning('分支 ' + branch + ' 不存在，已切换到 ' + def)
-    } else { fileTree.value = [] }
-  } catch { fileTree.value = [] }
+  // 彻底失败：清空
+  fileTree.value = []
 }
 
 async function handleFileClick(node) {
@@ -703,9 +705,9 @@ async function handleCreateFile() {
   try {
     const r = repo.value
     const fp = fullNewFilePath.value
-    const branch = selectedBranch.value !== (r.defaultBranch || 'main') ? (r.defaultBranch || 'main') : selectedBranch.value
     const body = {
-      path: fp, branch,
+      path: fp,
+      branch: selectedBranch.value,
       content: btoa(unescape(encodeURIComponent(newFileForm.value.content))),
       sha: null,
       message: '[FlowSync] Create ' + fp
@@ -714,7 +716,7 @@ async function handleCreateFile() {
     if (res.success) {
       ElMessage.success('文件已创建')
       newFileVisible.value = false
-      openTreeDialog(branch)
+      openTreeDialog(selectedBranch.value)
     }
   } finally { createFileSaving.value = false }
 }
@@ -725,9 +727,9 @@ async function handleCreateFolder() {
   try {
     const r = repo.value
     const fp = fullNewFolderPath.value
-    const branch = selectedBranch.value !== (r.defaultBranch || 'main') ? (r.defaultBranch || 'main') : selectedBranch.value
     const body = {
-      path: fp + '/.gitkeep', branch,
+      path: fp + '/.gitkeep',
+      branch: selectedBranch.value,
       content: btoa(''),
       sha: null,
       message: '[FlowSync] Create folder ' + fp
@@ -736,7 +738,7 @@ async function handleCreateFolder() {
     if (res.success) {
       ElMessage.success('文件夹已创建')
       newFolderVisible.value = false
-      openTreeDialog(branch)
+      openTreeDialog(selectedBranch.value)
     }
   } finally { createFileSaving.value = false }
 }

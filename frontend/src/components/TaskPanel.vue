@@ -35,9 +35,8 @@
         <template #default="{ row }">
           <el-button v-if="isLeader || isAdmin" size="small" @click="openDialog(row)">编辑</el-button>
           <el-button v-if="isAdmin || isProjectOwner(row)" size="small" type="primary" @click="openAssignDialog(row)">改负责人</el-button>
-          <el-button v-if="(isAdmin || isProjectOwner(row)) && !row.githubPublished" size="small" type="success" @click="handlePublishTask(row)">发布到GitHub</el-button>
-          <el-button v-if="row.githubPublished" size="small" type="success" plain @click="openTaskCode(row)">
-            {{ isProjectOwner(row) ? '查看代码' : '我的代码' }}
+          <el-button v-if="isAdmin || isProjectOwner(row) || row.assigneeId === currentUser.id" size="small" type="success" @click="openTaskCode(row)">
+            {{ isProjectOwner(row) || isAdmin ? '查看代码' : '我的代码' }}
           </el-button>
           <el-button v-if="canUpdateStatus(row)" size="small" type="warning" @click="openStatusDialog(row)">更新状态</el-button>
           <el-popconfirm v-if="isLeader || isAdmin" title="确认删除？" @confirm="handleDelete(row.id)">
@@ -279,13 +278,10 @@ async function handlePublishTask(row) {
   } catch {}
 }
 
-// 打开任务对应的 GitHub 代码视图
-// 分支名规则：task/{id}-{slug}，与后端保持一致
+// 查看代码：跳转到项目仓库（默认打开主分支，也可通过分支弹窗切换）
 function openTaskCode(row) {
-  const slug = row.title.replace(/[^a-zA-Z0-9一-龥]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase()
-  const branchName = 'task/' + row.id + '-' + slug
   window.dispatchEvent(new CustomEvent('nav-github-branch', {
-    detail: { projectId: row.projectId, branchName, taskTitle: row.title }
+    detail: { projectId: row.projectId, branchName: 'main', taskTitle: row.title }
   }))
 }
 
