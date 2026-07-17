@@ -104,6 +104,13 @@ export const githubContents = (owner, repo, path, branch) =>
   api.get(`/github/repos/${owner}/${repo}/contents`, { params: { path, branch } })
 export const githubDeleteFile = (owner, repo, params) =>
   api.delete(`/github/repos/${owner}/${repo}/contents`, { params })
+
+// 文件缓存审核
+export const submitFileCache = (projectId, data) => api.post(`/projects/${projectId}/file-cache`, data)
+export const getFileCache = (projectId) => api.get(`/projects/${projectId}/file-cache`)
+export const approveFileCache = (id) => api.post(`/file-cache/${id}/approve`)
+export const rejectFileCache = (id) => api.post(`/file-cache/${id}/reject`)
+
 export const fileLockAcquire = (data) => api.post('/github/file-lock/acquire', data)
 export const fileLockRelease = (data) => api.post('/github/file-lock/release', data)
 export const githubUploadFile = (owner, repo, data) =>

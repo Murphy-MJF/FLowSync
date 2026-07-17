@@ -259,7 +259,7 @@
                 </template>
                 <template v-if="isEditing">
                   <el-button size="small" type="primary" @click="saveEdit">应用修改</el-button>
-                  <el-button size="small" type="success" @click="handleUpload">上传到仓库</el-button>
+                  <el-button size="small" type="success" @click="handleUpload">提交审核</el-button>
                   <el-button size="small" @click="cancelEdit">取消</el-button>
                 </template>
               </div>
@@ -281,7 +281,8 @@ import { ref, computed, onMounted } from 'vue'
 import { getProjects, githubProjectStatus, githubRepositories, githubBindRepo, githubUnbindRepo,
          githubBranches, githubCommits, githubIssues, githubPulls, githubTree, githubContents,
          fileLockAcquire, fileLockRelease, fileLockStatus, githubUploadFile, githubDeleteFile,
-         githubAuthorizedRepos, githubAuthorizeRepo, githubDeauthorizeRepo } from '../api'
+         githubAuthorizedRepos, githubAuthorizeRepo, githubDeauthorizeRepo,
+         submitFileCache } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addToQueue, removeFromQueue } from '../store/uploadQueue'
 
@@ -581,30 +582,25 @@ async function handleUpload() {
 const currentQueueItem = ref(null)
 
 async function handleConfirmUpload() {
-  if (!selectedFile.value || !repo.value) {
+  if (!selectedFile.value || !repo.value || !selectedProjectId.value) {
     ElMessage.error('文件信息已丢失，请重新选择文件')
     uploadReady.value = false
     return
   }
-  const r = repo.value
   const filePath = selectedFile.value.path
-  const fileSha = selectedFile.value._sha
   try {
-    const body = {
-      path: filePath,
+    const res = await submitFileCache(selectedProjectId.value, {
+      filePath,
       content: btoa(unescape(encodeURIComponent(editContent.value))),
-      sha: fileSha || null,
+      originalSha: selectedFile.value._sha || null,
       branch: selectedBranch.value,
       message: '[FlowSync] Update ' + filePath
-    }
-    const res = await githubUploadFile(r.owner, r.repoName, body)
+    })
     if (res.success) {
-      ElMessage.success('文件已上传到 GitHub')
+      ElMessage.success('已提交审核，等待负责人批准')
     }
-  } catch (e) {
-    ElMessage.error('上传失败')
-  }
-  // 释放锁 + 清理状态 + 退出编辑
+  } catch (e) { ElMessage.error('提交失败') }
+  // 释放锁 + 清理
   await fileLockRelease({
     owner: repo.value.owner, repo: repo.value.repoName,
     branch: selectedBranch.value, path: filePath
@@ -616,7 +612,6 @@ async function handleConfirmUpload() {
   diffContent.value = ''
   isEditing.value = false
   currentQueueItem.value = null
-  // 刷新树回到文件预览
   openTreeDialog(selectedBranch.value)
 }
 
@@ -712,9 +707,12 @@ async function handleCreateFile() {
       sha: null,
       message: '[FlowSync] Create ' + fp
     }
-    const res = await githubUploadFile(r.owner, r.repoName, body)
+    const res = await submitFileCache(selectedProjectId.value, {
+      filePath: fp, content: body.content, originalSha: null,
+      branch: body.branch, message: body.message
+    })
     if (res.success) {
-      ElMessage.success('文件已创建')
+      ElMessage.success('文件已提交审核')
       newFileVisible.value = false
       openTreeDialog(selectedBranch.value)
     }
@@ -725,18 +723,13 @@ async function handleCreateFolder() {
   if (!newFolderForm.value.name) return
   createFileSaving.value = true
   try {
-    const r = repo.value
     const fp = fullNewFolderPath.value
-    const body = {
-      path: fp + '/.gitkeep',
-      branch: selectedBranch.value,
-      content: btoa(''),
-      sha: null,
-      message: '[FlowSync] Create folder ' + fp
-    }
-    const res = await githubUploadFile(r.owner, r.repoName, body)
+    const res = await submitFileCache(selectedProjectId.value, {
+      filePath: fp + '/.gitkeep', content: btoa(''), originalSha: null,
+      branch: selectedBranch.value, message: '[FlowSync] Create folder ' + fp
+    })
     if (res.success) {
-      ElMessage.success('文件夹已创建')
+      ElMessage.success('文件夹已提交审核')
       newFolderVisible.value = false
       openTreeDialog(selectedBranch.value)
     }
