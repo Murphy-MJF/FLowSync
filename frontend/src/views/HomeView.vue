@@ -1,9 +1,15 @@
 <template>
   <!-- ==================== 登录/注册页面 ==================== -->
   <div v-if="!currentUser" class="login-container">
+    <!-- 像素风格动态背景 -->
+    <canvas ref="pixelCanvas" class="pixel-canvas"></canvas>
+    <!-- 背景大字标题 -->
+    <div class="hero-title">FlowSync</div>
+    <div class="hero-subtitle">小组任务协同管理系统</div>
+
     <div class="login-card">
-      <h1 class="login-title">FlowSync</h1>
-      <p class="login-subtitle">小组任务协同管理系统</p>
+      <h1 v-if="!isRegisterMode" class="login-heading">登 录</h1>
+      <h1 v-else class="login-heading">注 册</h1>
 
       <!-- 登录表单 -->
       <el-form v-if="!isRegisterMode" :model="loginForm" :rules="loginRules" ref="loginFormRef" @keyup.enter="handleLogin">
@@ -19,7 +25,7 @@
           </el-button>
         </el-form-item>
         <div class="login-hint">
-          <!--<p>预置账号：leader / member1 / member2，密码均为 123456</p> -->
+          <!--<p>预置账号：admin/leader / member1 / member2，密码均为 123456</p> -->
           <p>
             没有账号？<el-button link type="primary" @click="switchToRegister">立即注册</el-button>
           </p>
@@ -214,7 +220,98 @@ const panelMap = {
 
 const currentPanel = computed(() => panelMap[activeMenu.value] || DashboardPanel)
 
+// 像素风格背景动画
+const pixelCanvas = ref(null)
+
+function initPixelBackground() {
+  const canvas = pixelCanvas.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  let w, h, cols, rows, grid, drops
+
+  function resize() {
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+    w = canvas.width; h = canvas.height
+    const size = 14
+    cols = Math.floor(w / size) + 1
+    rows = Math.floor(h / size) + 1
+    grid = new Array(cols).fill(null).map(() => new Array(rows).fill(0))
+    drops = new Array(cols).fill(0).map(() => Math.random() * -rows)
+  }
+  resize()
+  window.addEventListener('resize', resize)
+
+  let mx = w / 2, my = h / 2
+  canvas.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY })
+
+  // 蓝色系像素风
+  const bluePalette = ['#409EFF','#337ecc','#5cadff','#1a6dd4','#79bbff','#2b8af0']
+  const size = 14
+
+  function draw() {
+    ctx.fillStyle = 'rgba(8, 15, 30, 0.06)'
+    ctx.fillRect(0, 0, w, h)
+
+    for (let c = 0; c < cols; c++) {
+      const speed = 0.08 + Math.random() * 0.2
+      drops[c] += speed
+      const r = Math.floor(drops[c])
+      if (drops[c] > rows + 10) drops[c] = -3
+
+      if (r >= 0 && r < rows) {
+        let px = c * size, py = r * size
+        const dist = Math.hypot(px - mx, py - my)
+
+        // 鼠标避让
+        if (dist < 120 && dist > 0) {
+          const angle = Math.atan2(py - my, px - mx)
+          const push = (120 - dist) * 0.4
+          px += Math.cos(angle) * push
+          py += Math.sin(angle) * push
+        }
+
+        ctx.fillStyle = bluePalette[Math.floor(Math.random() * bluePalette.length)]
+        ctx.globalAlpha = 0.12
+
+        // 鼠标附近变亮
+        if (dist < 100) {
+          ctx.globalAlpha = 0.12 + (1 - dist / 100) * 0.45
+        }
+        ctx.fillRect(px, py, size, size)
+
+        // 拖尾
+        if (r > 0) {
+          let tx = c * size, ty = (r - 1) * size
+          const tdist = Math.hypot(tx - mx, ty - my)
+          if (tdist < 120 && tdist > 0) {
+            const a = Math.atan2(ty - my, tx - mx)
+            tx += Math.cos(a) * (120 - tdist) * 0.3
+            ty += Math.sin(a) * (120 - tdist) * 0.3
+          }
+          ctx.globalAlpha = 0.03
+          ctx.fillRect(tx, ty, size, size)
+        }
+        ctx.globalAlpha = 1
+      }
+    }
+
+    // 随机闪烁
+    for (let i = 0; i < 12; i++) {
+      const x = Math.floor(Math.random() * cols) * size
+      const y = Math.floor(Math.random() * rows) * size
+      ctx.fillStyle = bluePalette[Math.floor(Math.random() * bluePalette.length)]
+      ctx.globalAlpha = 0.15 + Math.random() * 0.2
+      ctx.fillRect(x, y, size, size)
+    }
+    ctx.globalAlpha = 1
+    requestAnimationFrame(draw)
+  }
+  draw()
+}
+
 onMounted(() => {
+  initPixelBackground()
   const stored = sessionStorage.getItem('currentUser')
   const token = sessionStorage.getItem('token')
   if (stored && token) {
@@ -302,30 +399,66 @@ function handleLogout() {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+  background: #0a0f1e;
+  position: relative;
+  overflow: hidden;
+}
+.pixel-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
 }
 .login-card {
+  position: relative;
+  z-index: 2;
   width: 400px;
   padding: 40px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  background: rgba(10, 18, 36, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 2px solid rgba(64, 158, 255, 0.35);
+  box-shadow: 0 0 30px rgba(64, 158, 255, 0.2), inset 0 0 30px rgba(64, 158, 255, 0.05);
+  image-rendering: pixelated;
 }
-.login-title {
-  text-align: center;
-  font-size: 28px;
-  color: #303133;
-  margin-bottom: 4px;
+/* 背景大字标题 */
+.hero-title {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 72px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 12px;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 0 80px rgba(255,255,255,0.1);
 }
-.login-subtitle {
+.hero-subtitle {
+  position: absolute;
+  top: calc(12% + 100px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 8px;
+  pointer-events: none;
+  user-select: none;
+}
+.login-heading {
   text-align: center;
-  color: #909399;
-  font-size: 14px;
-  margin-bottom: 30px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #79bbff;
+  margin-bottom: 24px;
+  text-shadow: 0 0 12px rgba(64, 158, 255, 0.4);
+  font-family: 'Courier New', monospace;
 }
 .login-hint {
   text-align: center;
-  color: #c0c4cc;
+  color: rgba(121, 187, 255, 0.5);
   font-size: 12px;
   line-height: 1.8;
 }
@@ -339,9 +472,10 @@ function handleLogout() {
 /* 侧边栏 */
 .sidebar {
   width: 220px;
-  background: #304156;
+  background: linear-gradient(180deg, #1e2a3a 0%, #263445 100%);
   display: flex;
   flex-direction: column;
+  box-shadow: 2px 0 16px rgba(0,0,0,0.12);
 }
 .sidebar-header {
   padding: 20px;
@@ -370,8 +504,8 @@ function handleLogout() {
 /* 内容区 */
 .content {
   flex: 1;
-  padding: 20px;
-  background: #f0f2f5;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
   overflow-y: auto;
 }
 </style>
