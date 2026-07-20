@@ -2,7 +2,16 @@
   <div>
     <h2 style="margin-bottom:16px">个人信息</h2>
     <el-card style="max-width:600px">
-      <template #header>基本信息</template>
+      <template #header>
+        <div style="display:flex;align-items:center;gap:16px">
+          <!-- 头像 -->
+          <div class="avatar-circle" :style="{ background: !avatarImg ? avatarColor : 'transparent' }" @click="showAvatarPicker = true">
+            <img v-if="avatarImg" :src="avatarImg" style="width:100%;height:100%;border-radius:50%;object-fit:cover" />
+            <span v-else>{{ avatarText }}</span>
+          </div>
+          <span>基本信息</span>
+        </div>
+      </template>
       <el-descriptions :column="1" border>
         <el-descriptions-item label="用户名">{{ currentUser.username }}</el-descriptions-item>
         <el-descriptions-item label="真实姓名">{{ currentUser.realName }}</el-descriptions-item>
@@ -67,6 +76,23 @@
       </el-form>
     </el-dialog>
 
+    <!-- 头像修改弹窗 -->
+    <el-dialog title="修改头像" v-model="showAvatarPicker" width="380px">
+      <div v-if="avatarPreview" style="text-align:center;margin-bottom:12px">
+        <img :src="avatarPreview" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #409EFF" />
+        <p style="font-size:12px;color:#67C23A;margin-top:4px">头像已更新</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
+        <div v-for="c in avatarColors" :key="c" @click="pickAvatarColor(c)"
+             :style="{ background: c, width:'44px', height:'44px', borderRadius:'50%', cursor:'pointer', border: (!avatarPreview && avatarColor===c) ? '3px solid #303133' : '3px solid transparent' }" />
+      </div>
+      <div style="text-align:center">
+        <input type="file" accept="image/*" ref="fileInput" style="display:none" @change="handleFileUpload" />
+        <el-button size="small" @click="$refs.fileInput.click()">上传图片</el-button>
+        <el-button v-if="avatarPreview" size="small" type="primary" style="margin-left:8px" @click="saveAvatar">保存头像</el-button>
+      </div>
+    </el-dialog>
+
     <!-- GitHub 连接 -->
     <el-card style="max-width:600px;margin-top:20px">
       <template #header>
@@ -91,6 +117,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { updatePassword, updateProfile, githubStatus, githubConnect, githubRevoke } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { updateAvatar as storeUpdateAvatar } from '../store/avatarStore'
 
 const props = defineProps({ currentUser: Object })
 
@@ -98,6 +125,35 @@ const dialogVisible = ref(false)
 const dialogType = ref('')
 const saving = ref(false)
 const pwdFormRef = ref(null)
+
+// 头像：基于用户名哈希选色，首字母展示
+const avatarColors = ['#409EFF','#67C23A','#E6A23C','#F56C6C','#00d4ff','#8b5cf6']
+const storedColor = sessionStorage.getItem('avatarColor')
+const avatarColor = ref(storedColor || avatarColors[hashCode(props.currentUser?.realName || 'U') % avatarColors.length])
+const avatarText = computed(() => (props.currentUser?.realName || 'U').charAt(0).toUpperCase())
+const avatarImg = computed(() => sessionStorage.getItem('avatarData') || props.currentUser?.avatar || '')
+const showAvatarPicker = ref(false)
+const avatarPreview = ref('')
+const fileInput = ref(null)
+function hashCode(s) { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i); return Math.abs(h) }
+function pickAvatarColor(c) { avatarColor.value = c; avatarPreview.value = ''; sessionStorage.setItem('avatarColor', c); sessionStorage.removeItem('avatarData'); storeUpdateAvatar(null, c); showAvatarPicker.value = false }
+function handleFileUpload(e) {
+  const file = e.target.files[0]
+  if (!file || file.size > 500000) { ElMessage.warning('图片不超过500KB'); return }
+  const reader = new FileReader()
+  reader.onload = () => { avatarPreview.value = reader.result }
+  reader.readAsDataURL(file)
+}
+async function saveAvatar() {
+  if (!avatarPreview.value) return
+  await updateProfile({ phone: props.currentUser.phone, email: props.currentUser.email, avatar: avatarPreview.value })
+  storeUpdateAvatar(avatarPreview.value, '')
+  const user = JSON.parse(sessionStorage.getItem('currentUser'))
+  user.avatar = avatarPreview.value
+  sessionStorage.setItem('currentUser', JSON.stringify(user))
+  ElMessage.success('头像已保存')
+  showAvatarPicker.value = false
+}
 
 const phoneForm = reactive({ value: '' })
 const emailForm = reactive({ value: '' })
@@ -252,3 +308,14 @@ async function handleSavePwd() {
   } finally { saving.value = false }
 }
 </script>
+
+<style scoped>
+.avatar-circle {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 24px; font-weight: bold;
+  cursor: pointer; user-select: none;
+  transition: transform 0.2s;
+}
+.avatar-circle:hover { transform: scale(1.1); }
+</style>

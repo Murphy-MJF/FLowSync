@@ -17,6 +17,7 @@ public class User {
     private String role;
     private String phone;
     private String email;
+    private String avatar;
     private Integer aiQuota;
 
     @TableField(fill = FieldFill.INSERT)

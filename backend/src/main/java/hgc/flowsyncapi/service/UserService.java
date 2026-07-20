@@ -7,7 +7,7 @@ import hgc.flowsyncapi.entity.AiQuotaRequest;
 
 public interface UserService {
     List<User> listUsers();
-    User updateProfile(Long userId, String phone, String email);
+    User updateProfile(Long userId, String phone, String email, String avatar);
     User changeRole(Long userId, String newRole);
 
     // AI 额度

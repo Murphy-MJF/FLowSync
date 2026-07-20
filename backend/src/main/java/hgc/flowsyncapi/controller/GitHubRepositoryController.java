@@ -140,7 +140,7 @@ public class GitHubRepositoryController {
             Map<String, Object> ghRepo = apiClient.getRepository(token, owner, repo);
 
             // 删除旧绑定
-            repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+            repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId).last("limit 1"));
 
             ProjectGithubRepo binding = new ProjectGithubRepo();
             binding.setProjectId(projectId);
@@ -161,7 +161,7 @@ public class GitHubRepositoryController {
     @GetMapping("/projects/{projectId}/github/status")
     public ApiResponse<ProjectGithubRepo> repoStatus(@PathVariable Long projectId) {
         ProjectGithubRepo binding = repoMapper.selectOne(
-                new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+                new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId).last("limit 1"));
         return binding != null ? ApiResponse.ok(binding) : ApiResponse.fail("未绑定仓库");
     }
 
@@ -217,7 +217,7 @@ public class GitHubRepositoryController {
     /** 解绑项目仓库 */
     @DeleteMapping("/projects/{projectId}/github/repository")
     public ApiResponse<Void> unbindRepo(@PathVariable Long projectId) {
-        repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+        repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId).last("limit 1"));
         return ApiResponse.ok("已解绑", null);
     }
 
@@ -236,7 +236,7 @@ public class GitHubRepositoryController {
             String owner = (String) ((Map<String, Object>) ghRepo.get("owner")).get("login");
             String repoName = (String) ghRepo.get("name");
 
-            repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+            repoMapper.delete(new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId).last("limit 1"));
             ProjectGithubRepo binding = new ProjectGithubRepo();
             binding.setProjectId(projectId);
             binding.setRepoId(Long.valueOf(ghRepo.get("id").toString()));
@@ -339,7 +339,7 @@ public class GitHubRepositoryController {
         if (!visibleIds.contains(projectId)) return ApiResponse.fail("无权查看该项目");
 
         ProjectGithubRepo binding = repoMapper.selectOne(
-                new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId));
+                new QueryWrapper<ProjectGithubRepo>().eq("project_id", projectId).last("limit 1"));
         if (binding == null) return ApiResponse.fail("该项目未绑定仓库");
 
         try {

@@ -34,11 +34,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User updateProfile(Long userId, String phone, String email) {
+    public User updateProfile(Long userId, String phone, String email, String avatar) {
         User user = userMapper.selectById(userId);
         if (user == null) throw new RuntimeException("用户不存在");
         user.setPhone(phone);
         user.setEmail(email);
+        if (avatar != null) user.setAvatar(avatar);
         userMapper.updateById(user);
         user.setPassword(null);
         return user;

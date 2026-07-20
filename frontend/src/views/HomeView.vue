@@ -75,6 +75,11 @@
     <!-- 侧边栏 -->
     <div class="sidebar">
       <div class="sidebar-header">
+        <div class="sidebar-avatar" :style="{ background: !sidebarAvatarImg ? sidebarAvatarColor : 'transparent' }"
+             @click="showProfile" title="个人信息">
+          <img v-if="sidebarAvatarImg" :src="sidebarAvatarImg" style="width:100%;height:100%;border-radius:50%;object-fit:cover" />
+          <span v-else>{{ sidebarAvatarText }}</span>
+        </div>
         <h2>FlowSync</h2>
       </div>
       <el-menu
@@ -124,11 +129,6 @@
           <span>GitHub 仓库</span>
         </el-menu-item>
 
-        <!-- 系统信息 -->
-        <el-menu-item index="profile">
-          <el-icon><Setting /></el-icon>
-          <span>个人信息</span>
-        </el-menu-item>
       </el-menu>
 
       <!-- 底部用户信息 -->
@@ -147,11 +147,16 @@
     <div class="content">
       <component :is="currentPanel" :current-user="currentUser" />
     </div>
+
+    <!-- 个人信息抽屉（点击头像展开） -->
+    <el-drawer v-model="profileVisible" title="个人信息" direction="ltr" size="420px">
+      <ProfilePanel :current-user="currentUser" />
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { login as apiLogin, register as apiRegister } from '../api'
 
@@ -165,9 +170,12 @@ import SummaryPanel from '../components/SummaryPanel.vue'
 import AdminPanel from '../components/AdminPanel.vue'
 import GitHubPanel from '../components/GitHubPanel.vue'
 import ProfilePanel from '../components/ProfilePanel.vue'
+import { avatarImage, avatarColor as storeAvatarColor } from '../store/avatarStore'
 
 const currentUser = ref(null)
 const activeMenu = ref('dashboard')
+const profileVisible = ref(false)
+function showProfile() { profileVisible.value = true }
 const submitting = ref(false)
 const isRegisterMode = ref(false)
 const loginFormRef = ref(null)
@@ -205,6 +213,16 @@ const registerRules = {
 const isLeader = computed(() => currentUser.value?.role === '负责人')
 const isAdmin = computed(() => currentUser.value?.role === '管理员')
 
+const sidebarAvatarText = computed(() => (currentUser.value?.realName || 'U').charAt(0).toUpperCase())
+const sidebarAvatarImg = computed(() => avatarImage.value || currentUser.value?.avatar || '')
+const sidebarAvatarColor = computed(() => {
+  const sc = storeAvatarColor.value
+  if (sc) return sc
+  const h = (s) => { let h = 0; for (let i = 0; i < (s||'').length; i++) h = ((h << 5) - h) + s.charCodeAt(i); return Math.abs(h) }
+  const colors = ['#409EFF','#67C23A','#E6A23C','#F56C6C','#00d4ff','#8b5cf6']
+  return colors[h(currentUser.value?.realName) % colors.length]
+})
+
 // 菜单 → 面板映射
 const panelMap = {
   'dashboard': DashboardPanel,
@@ -214,8 +232,7 @@ const panelMap = {
   'task-logs': TaskLogPanel,
   'summaries': SummaryPanel,
   'github': GitHubPanel,
-  'admin': AdminPanel,
-  'profile': ProfilePanel
+  'admin': AdminPanel
 }
 
 const currentPanel = computed(() => panelMap[activeMenu.value] || DashboardPanel)
@@ -311,7 +328,7 @@ function initPixelBackground() {
 }
 
 onMounted(() => {
-  initPixelBackground()
+  if (!currentUser.value) initPixelBackground()
   const stored = sessionStorage.getItem('currentUser')
   const token = sessionStorage.getItem('token')
   if (stored && token) {
@@ -379,6 +396,11 @@ async function handleRegister() {
 function handleMenuSelect(index) {
   activeMenu.value = index
 }
+
+// 退出登录后重新初始化像素背景
+watch(currentUser, async (val) => {
+  if (!val) { await nextTick(); initPixelBackground() }
+})
 
 function handleLogout() {
   sessionStorage.removeItem('token')
@@ -478,13 +500,16 @@ function handleLogout() {
   box-shadow: 2px 0 16px rgba(0,0,0,0.12);
 }
 .sidebar-header {
-  padding: 20px;
-  text-align: center;
+  padding: 20px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   color: #fff;
   border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 .sidebar-header h2 {
-  font-size: 20px;
+  font-size: 18px;
+  margin: 0;
 }
 .sidebar .el-menu {
   flex: 1;
@@ -497,8 +522,14 @@ function handleLogout() {
   align-items: center;
   color: #bfcbd9;
   font-size: 13px;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+}
+.sidebar-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 16px; font-weight: bold;
+  flex-shrink: 0;
 }
 
 /* 内容区 */

@@ -49,7 +49,7 @@ public class UserController {
                                             HttpServletRequest req) {
         Long userId = AuthController.getCurrentUserId(req);
         try {
-            User updated = userService.updateProfile(userId, request.getPhone(), request.getEmail());
+            User updated = userService.updateProfile(userId, request.getPhone(), request.getEmail(), request.getAvatar());
             logService.log(userId, "修改资料", "用户", userId, "更新电话/邮箱");
             return ApiResponse.ok("资料修改成功", updated);
         } catch (RuntimeException e) {
