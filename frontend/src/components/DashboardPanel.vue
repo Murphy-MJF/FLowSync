@@ -3,7 +3,7 @@
     <h2 style="margin-bottom:20px">控制台</h2>
     <el-row :gutter="20">
       <el-col :span="6" v-for="item in stats" :key="item.label">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="stat-card" @click="goTo(item.panel)">
           <div style="text-align:center">
             <div style="font-size:14px;color:#909399">{{ item.label }}</div>
             <div style="font-size:36px;font-weight:bold;color:#409EFF;margin-top:8px">{{ item.value }}</div>
@@ -19,7 +19,7 @@
       </template>
       <div v-for="item in queueItems" :key="item.path"
            style="display:flex;align-items:center;justify-content:space-between;padding:10px;margin-bottom:8px;border-radius:4px"
-           :style="{ background: item.ready ? '#f0f9eb' : '#fdf6ec' }">
+           :style="{ background: item.ready ? 'rgba(103,194,58,0.12)' : 'rgba(230,162,60,0.12)' }">
         <div>
           <div style="font-weight:bold">{{ item.owner }}/{{ item.repo }} — {{ item.path }}</div>
           <div style="font-size:12px;color:#909399;margin-top:4px">
@@ -113,11 +113,14 @@ import { pendingUploads } from '../store/uploadQueue'
 import { ElMessage } from 'element-plus'
 
 const stats = ref([
-  { label: '系统用户', value: 0 },
-  { label: '项目总数', value: 0 },
-  { label: '任务总数', value: 0 },
-  { label: '总结总数', value: 0 }
+  { label: '系统用户', value: 0, panel: 'admin' },
+  { label: '项目总数', value: 0, panel: 'projects' },
+  { label: '任务总数', value: 0, panel: 'tasks' },
+  { label: '总结总数', value: 0, panel: 'summaries' }
 ])
+
+const emit = defineEmits(['navigate'])
+function goTo(panel) { emit('navigate', panel) }
 
 const props = defineProps({ currentUser: Object })
 const isReviewer = computed(() => props.currentUser?.role === '负责人' || props.currentUser?.role === '管理员')
@@ -229,3 +232,7 @@ async function loadInitialData() {
   } catch (e) { /* ignore */ }
 }
 </script>
+<style scoped>
+.stat-card { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+.stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(64,158,255,0.2); border-color: rgba(64,158,255,0.4); }
+</style>

@@ -27,6 +27,10 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
 </script>
 
 <style>
+/* 全局暗色背景 */
+html, body {
+  background: #0a0f1e;
+}
 /* 返回顶部按钮 */
 .back-to-top {
   position: fixed;
